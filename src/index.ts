@@ -4,7 +4,7 @@ import "@polkadot/api-augment";
 import "@polkadot/types-augment";
 import { readFileSync } from 'fs';
 import { logger } from "./logger";
-import { ConsoleReporter, EmailReporter, FileSystemReporter, MatrixReporter, Reporter } from "./reporters"
+import { ConsoleReporter, EmailReporter, FileSystemReporter, MatrixReporter, Report, Reporter } from "./reporters"
 import yargs from "yargs";
 
 const argv = yargs(process.argv.slice(2))
@@ -56,11 +56,12 @@ async function perHeader(chain: string, api: ApiPromise, header: Header, account
 	const hash = header.hash;
 	const timestamp = (await blockApi.query.timestamp.now()).toBn().toNumber()
 
+	const report: Report = { api, hash, chain, number, timestamp, inputs: [] }
 	for (const ext of extrinsics) {
 		const type = ReportType.Extrinsic;
 		const maybeMatch = accounts.find((e) => e.address.eq(ext.signer)) || accounts.find((e) => ext.toString().includes(e.address.toString()));
 		if (maybeMatch) {
-			await Promise.all(reporters.map((r) => r.report({ api, type, hash, chain, number, timestamp, who: maybeMatch }, ext)))
+			report.inputs.push({account: maybeMatch, type, inner: ext })
 		}
 	}
 
@@ -68,8 +69,12 @@ async function perHeader(chain: string, api: ApiPromise, header: Header, account
 		const type = ReportType.Event
 		const maybeMatch = accounts.find((e) => event.data.toString().includes(e.address.toString()));
 		if (maybeMatch) {
-			await Promise.all(reporters.map(r => r.report({ api, type, hash, chain, number, timestamp, who: maybeMatch }, event)))
+			report.inputs.push({account: maybeMatch, type, inner: event })
 		}
+	}
+
+	if (report.inputs.length) {
+		await Promise.all(reporters.map((r) => r.report(report)))
 	}
 }
 

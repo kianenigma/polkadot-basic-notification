@@ -1,6 +1,6 @@
 import { Hash } from "@polkadot/types/interfaces/runtime";
 import { GenericExtrinsic, GenericEvent } from "@polkadot/types/";
-import { AnyTuple, Codec } from "@polkadot/types-codec/types";
+import { Codec } from "@polkadot/types-codec/types";
 import { logger } from "../logger";
 import * as nodemailer from "nodemailer";
 import * as openpgp from 'openpgp';
@@ -10,33 +10,35 @@ import { readFileSync } from 'fs'
 import { EmailConfig, ExtendedAccount, ReportType } from "..";
 import { ApiPromise } from "@polkadot/api";
 
-export interface ReportMetadata {
+enum COLOR {
+	Primary = "#a3e4d7",
+}
+
+interface ReportInput {
+	account: ExtendedAccount,
+	type: ReportType,
+	inner: GenericEvent | GenericExtrinsic;
+}
+
+export interface Report {
 	hash: Hash,
 	number: number,
 	chain: string,
 	timestamp: number,
-	who: ExtendedAccount,
-	type: ReportType,
+	inputs: ReportInput[]
 	api: ApiPromise,
 }
 
 export interface Reporter {
-	report(meta: ReportMetadata, input: GenericExtrinsic | GenericEvent): Promise<void>;
+	report(report: Report): Promise<void>;
 
 }
 
-type ReportInput = GenericEvent | GenericExtrinsic;
-
-enum COLOR {
-	Primary = "#d98880",
-}
 export class GenericReporter  {
-	meta: ReportMetadata;
-	input: GenericEvent | GenericExtrinsic;
+	meta: Report;
 
-	constructor(meta: ReportMetadata, input: ReportInput) {
+	constructor(meta: Report) {
 		this.meta = meta;
-		this.input = input;
 	}
 
 	formatData(data: Codec): string {
@@ -56,19 +58,19 @@ export class GenericReporter  {
 		return `<b style="background-color: ${COLOR.Primary}">${this.meta.chain}</b>`
 	}
 
-	method(): string {
-		if (this.meta.type === ReportType.Event) {
-			return this.input.method.toString()
+	method(input: ReportInput): string {
+		if (input.type === ReportType.Event) {
+			return input.inner.method.toString()
 		} else {
-			return (this.input as GenericExtrinsic).meta.name.toString()
+			return (input.inner as GenericExtrinsic).meta.name.toString()
 		}
 	}
 
-	data(): string {
-		if (this.meta.type === ReportType.Event) {
-			return `[${(this.input as GenericEvent).data.map((d) => this.formatData(d)).join(', ')}]`
+	data(input: ReportInput): string {
+		if (input.type === ReportType.Event) {
+			return `[${(input.inner as GenericEvent).data.map((d) => this.formatData(d)).join(', ')}]`
 		} else {
-			return `[${(this.input as GenericExtrinsic).method.args.map((d) => this.formatData(d)).join(', ')}]`
+			return `[${(input.inner as GenericExtrinsic).method.args.map((d) => this.formatData(d)).join(', ')}]`
 		}
 	}
 
@@ -76,22 +78,20 @@ export class GenericReporter  {
 		const { api, ...strippedMeta } = this.meta;
 		return `
 <p>
+	<p>📣 <b> Notification</b> at ${this.chain()} #<a href='${this.subscan()}'>${this.meta.number}</a> aka ${new Date(this.meta.timestamp).toTimeString()}</p>
 	<ul>
-	<li>📣 <b>${this.meta.type} Notification</b> at ${this.chain()} #<a href='${this.subscan()}'>${this.meta.number}</a> aka ${new Date(this.meta.timestamp).toTimeString()}</li>
-	<li>🧾 For <i>${this.meta.who.address}</i> aka <b>${this.meta.who.nickname}</b></li>
-	<li>💻 method: <b style="background-color: ${COLOR.Primary}">${this.method()}</b></li>
-	<li>💽 data: ${this.data()}</li>
+		${this.meta.inputs.map((i) => `<li>💻 type: ${i.type} | for <b style="background-color: ${COLOR.Primary}">${i.account.nickname}</b> (${i.account.address}) | method: <b style="background-color: ${COLOR.Primary}">${this.method(i)}</b> | data: ${this.data(i)}</li>`)}
 	</ul>
 </p>
 <details>
 	<summary>Raw details</summary>
-	<code>${JSON.stringify({ ...strippedMeta, ...this.input })}</code>
+	<code>${JSON.stringify(strippedMeta)}</code>
 </details>
 `
 	}
 
 	rawTemplate(): string {
-		return `🎤 Event at #${this.meta.number} for ${this.meta.who.address} aka ${this.meta.who.nickname}: ${this.method()}(${this.data()}) (${this.subscan()})`
+		return `🎤 Events at #${this.meta.number}:  ${this.meta.inputs.map((i) => `[🧾 ${i.type} for ${i.account.nickname} | 💻 method:${this.method(i)} | 💽 data: ${this.data(i)}]`)} (${this.subscan()})`
 	}
 }
 
@@ -102,8 +102,8 @@ export class FileSystemReporter implements Reporter {
 		logger.info(`✅ registering file system reporter`)
 	}
 
-	report(meta: ReportMetadata, input: GenericExtrinsic<AnyTuple>): Promise<void> {
-		appendFileSync(this.path, `${new GenericReporter(meta, input).rawTemplate()}\n`)
+	report(meta: Report): Promise<void> {
+		appendFileSync(this.path, `${new GenericReporter(meta).rawTemplate()}\n`)
 		return Promise.resolve()
 	}
 }
@@ -113,8 +113,8 @@ export class ConsoleReporter implements Reporter {
 		logger.info(`✅ registering console reporter`)
 	}
 
-	report(meta: ReportMetadata, input: GenericExtrinsic<AnyTuple>): Promise<void> {
-		console.log(new GenericReporter(meta, input).rawTemplate())
+	report(meta: Report): Promise<void> {
+		console.log(new GenericReporter(meta).rawTemplate())
 		return Promise.resolve()
 	}
 }
@@ -171,10 +171,10 @@ export class EmailReporter implements Reporter {
 		));
 	}
 
-	async report(meta: ReportMetadata, input: GenericExtrinsic<AnyTuple>): Promise<void> {
-		const content = new GenericReporter(meta, input).HTMLTemplate();
+	async report(meta: Report): Promise<void> {
+		const content = new GenericReporter(meta).HTMLTemplate();
 		await this.sendEmail(
-			`extrinsic notification in ${meta.chain}`,
+			`${meta.chain} notifications at #${meta.number}`,
 			content,
 		)
 	}
@@ -193,8 +193,8 @@ export class MatrixReporter implements Reporter {
 		logger.info(`✅ registering matrix reporter from ${config.userId} to ${this.roomId}@${config.server}.`)
 	}
 
-	async report(meta: ReportMetadata, input: GenericExtrinsic<AnyTuple>): Promise<void> {
-		const innerContent = new GenericReporter(meta, input).HTMLTemplate();
+	async report(meta: Report): Promise<void> {
+		const innerContent = new GenericReporter(meta).HTMLTemplate();
 		const content = {
 			"formatted_body": innerContent,
 			"body": innerContent,
