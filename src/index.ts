@@ -32,6 +32,13 @@ export interface EmailConfig {
 	transporter: any
 }
 
+export interface MatrixConfig {
+	userId: string,
+	accessToken: string,
+	roomId: string,
+	server: string,
+}
+
 interface ReportersConfig {
 	email?: EmailConfig,
 	matrix?: any,
@@ -114,7 +121,7 @@ async function main() {
 			reporters.push(new FileSystemReporter(config.reporters[reporterType]["path"]))
 		}
 		if (reporterType === "matrix") {
-			const reporter = new MatrixReporter(config.reporters[reporterType]);
+			const reporter = new MatrixReporter(config.reporters[reporterType] as MatrixConfig);
 			reporters.push(reporter)
 		}
 	}

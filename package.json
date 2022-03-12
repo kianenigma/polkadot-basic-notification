@@ -6,11 +6,9 @@
 	"scripts": {
 		"dev": "./node_modules/.bin/nodemon --exec ./node_modules/.bin/ts-node ./src/index.ts",
 		"start": "./node_modules/.bin/ts-node ./src/index.ts",
+		"deploy:pm2": "./node_modules/.bin/pm2 start pm2.config.js",
 		"update": "./node_modules/.bin/ncu -u && yarn",
-		"lint": "eslint . --ext .ts --fix",
-		"build": "./node_modules/.bin/tsc",
-		"clean": "./node_modules/.bin/tsc --build --clean",
-		"deploy:pm2": "./node_modules/.bin/pm2 start pm2.config.js"
+		"lint": "eslint . --ext .ts --fix"
 	},
 	"author": "@kianenigma",
 	"license": "ISC",

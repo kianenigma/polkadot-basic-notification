@@ -7,7 +7,7 @@ import * as openpgp from 'openpgp';
 import * as sdk from "matrix-js-sdk";
 import { appendFileSync } from "fs";
 import { readFileSync } from 'fs'
-import { EmailConfig, ExtendedAccount, ReportType } from "..";
+import { EmailConfig, ExtendedAccount, MatrixConfig, ReportType } from "..";
 import { ApiPromise } from "@polkadot/api";
 
 enum COLOR {
@@ -183,7 +183,7 @@ export class EmailReporter implements Reporter {
 export class MatrixReporter implements Reporter {
 	client: sdk.MatrixClient;
 	roomId: string;
-	constructor(config: any) {
+	constructor(config: MatrixConfig) {
 		this.client = sdk.createClient({
 			baseUrl: config.server,
 			accessToken: config.accessToken,
