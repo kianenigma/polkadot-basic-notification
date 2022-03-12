@@ -5,9 +5,8 @@
 		"lib": [
 			"es6"
 		],
-		"allowJs": true,
 		"outDir": "build",
-		"rootDir": "src",
+
 		// Some compiling checks.
 		"strict": true,
 		"noImplicitAny": true,
@@ -16,12 +15,9 @@
 		"strictPropertyInitialization": true,
 		"noImplicitThis": true,
 		"alwaysStrict": true,
-
-		// dep resolution
-		"allowSyntheticDefaultImports": true,
-		"esModuleInterop": true,
-		"experimentalDecorators": true,
-		"resolveJsonModule": true
-	}
+	},
+	"exclude": [
+		"./pm2.config.js"
+	]
 }
 

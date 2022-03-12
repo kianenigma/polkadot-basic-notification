@@ -5,19 +5,47 @@ import "@polkadot/types-augment";
 import { readFileSync } from 'fs';
 import { logger } from "./logger";
 import { ConsoleReporter, EmailReporter, FileSystemReporter, MatrixReporter, Reporter } from "./reporters"
-import { string } from "yargs";
-import { type } from "os";
+import yargs from "yargs";
+
+const argv = yargs(process.argv.slice(2))
+	.option('c', {
+		type: 'string',
+		description: 'path to a JSON file with your config in it.',
+		required: true,
+		demandOption: true,
+	}).parseSync()
+
+export enum ReportType {
+	Event = "Event",
+	Extrinsic = "Extrinsic",
+}
 
 export interface ExtendedAccount {
 	address: Address,
 	nickname: string
 }
 
+export interface EmailConfig {
+	from: string,
+	to: string[],
+	gpgpubkey?: string,
+	transporter: any
+}
+
+interface ReportersConfig {
+	email?: EmailConfig,
+	matrix?: any,
+	fs?: any,
+	console?: any
+}
+
 interface ConfigInterface {
 	accounts: [string, string][],
 	endpoints: string[],
-	reporters: any,
+	reporters: ReportersConfig,
 }
+
+
 
 async function perHeader(chain: string, api: ApiPromise, header: Header, accounts: ExtendedAccount[], reporters: Reporter[]) {
 	const signedBlock = await api.rpc.chain.getBlock(header.hash);
@@ -26,18 +54,21 @@ async function perHeader(chain: string, api: ApiPromise, header: Header, account
 	const events = await blockApi.query.system.events();
 	const number = header.number.toNumber();
 	const hash = header.hash;
+	const timestamp = (await blockApi.query.timestamp.now()).toBn().toNumber()
 
 	for (const ext of extrinsics) {
+		const type = ReportType.Extrinsic;
 		const maybeMatch = accounts.find((e) => e.address.eq(ext.signer)) || accounts.find((e) => ext.toString().includes(e.address.toString()));
 		if (maybeMatch) {
-			await Promise.all(reporters.map((r) => r.reportExtrinsic({ hash, chain, number, who: maybeMatch }, ext)))
+			await Promise.all(reporters.map((r) => r.report({ api, type, hash, chain, number, timestamp, who: maybeMatch }, ext)))
 		}
 	}
 
 	for (const event of events.map(e => e.event)) {
+		const type = ReportType.Event
 		const maybeMatch = accounts.find((e) => event.data.toString().includes(e.address.toString()));
 		if (maybeMatch) {
-			await Promise.all(reporters.map(r => r.reportEvent({ hash, chain, number, who: maybeMatch }, event)))
+			await Promise.all(reporters.map(r => r.report({ api, type, hash, chain, number, timestamp, who: maybeMatch }, event)))
 		}
 	}
 }
@@ -50,7 +81,7 @@ async function listenChain(ws: string, accounts: [string, string][], reporters: 
 	const chain = (await api.rpc.system.chain()).toString()
 	logger.info(`⛓ Connected to [${ws}] ${chain} [ss58: ${api.registry.chainSS58}]`)
 
-	const unsub = await api.rpc.chain.subscribeFinalizedHeads(async (header) => {
+	const unsub = await api.rpc.chain.subscribeNewHeads(async (header) => {
 		logger.debug(`checking block ${header.hash} of ${chain}`);
 		await perHeader(chain, api, header, extendedAccounts, reporters)
 	});
@@ -63,11 +94,11 @@ async function listAllChains(config: ConfigInterface, reporters: Reporter[]) {
 }
 
 async function main() {
-	const config: ConfigInterface = JSON.parse(readFileSync('config.json').toString());
+	const config: ConfigInterface = JSON.parse(readFileSync(argv.c).toString());
 	const reporters: Reporter[] = [];
 	for (const reporterType in config.reporters) {
 		if (reporterType === "email") {
-			const reporter = new EmailReporter(config.reporters[reporterType]);
+			const reporter = new EmailReporter(config.reporters[reporterType] as EmailConfig);
 			await reporter.verify();
 			reporters.push(reporter)
 		}

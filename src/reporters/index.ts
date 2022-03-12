@@ -1,93 +1,131 @@
 import { Hash } from "@polkadot/types/interfaces/runtime";
 import { GenericExtrinsic, GenericEvent } from "@polkadot/types/";
-import { AnyTuple } from "@polkadot/types-codec/types";
+import { AnyTuple, Codec } from "@polkadot/types-codec/types";
 import { logger } from "../logger";
 import * as nodemailer from "nodemailer";
 import * as openpgp from 'openpgp';
 import * as sdk from "matrix-js-sdk";
 import { appendFileSync } from "fs";
 import { readFileSync } from 'fs'
-import { ExtendedAccount } from "..";
+import { EmailConfig, ExtendedAccount, ReportType } from "..";
+import { ApiPromise } from "@polkadot/api";
 
 export interface ReportMetadata {
 	hash: Hash,
 	number: number,
 	chain: string,
-	who: ExtendedAccount
+	timestamp: number,
+	who: ExtendedAccount,
+	type: ReportType,
+	api: ApiPromise,
 }
 
 export interface Reporter {
-	reportExtrinsic(meta: ReportMetadata, input: GenericExtrinsic | GenericEvent): Promise<void>;
-	reportEvent(meta: ReportMetadata, input: GenericEvent): Promise<void>;
+	report(meta: ReportMetadata, input: GenericExtrinsic | GenericEvent): Promise<void>;
+
 }
 
+type ReportInput = GenericEvent | GenericExtrinsic;
+
+enum COLOR {
+	Primary = "#d98880",
+}
 export class GenericReporter  {
-	subscan(meta: ReportMetadata): string {
-		return `https://${meta.chain.toLowerCase()}.subscan.io/block/${meta.number}`
+	meta: ReportMetadata;
+	input: GenericEvent | GenericExtrinsic;
+
+	constructor(meta: ReportMetadata, input: ReportInput) {
+		this.meta = meta;
+		this.input = input;
 	}
 
-	RawEvent(meta: ReportMetadata, input: GenericEvent): string {
-		return `🎤 Event at #${meta.number} for ${meta.who.address} aka ${meta.who.nickname}: ${input.method.toString()}(${input.data.map((x) => x.toHuman()).join(', ')}) (${this.subscan(meta)})`
+	formatData(data: Codec): string {
+		const r = data.toRawType().toLowerCase();
+		if (r == "u128" || r.toLowerCase() == "balance") {
+			return this.meta.api.createType('Balance', data).toHuman()
+		} else {
+			return data.toString()
+		}
 	}
 
-	RawExtrinsic(meta: ReportMetadata, input: GenericExtrinsic<AnyTuple>): string {
-		return `📣 Extrinsic at #${meta.number} from ${meta.who.address} aka ${meta.who.nickname}: ${input.meta.name}(${input.method.args.map((x) => x.toString()).join(', ')}) (${this.subscan(meta)})`
+	subscan(): string {
+		return `https://${this.meta.chain.toLowerCase()}.subscan.io/block/${this.meta.number}`
 	}
 
-	HTMLEvent(meta: ReportMetadata, input: GenericEvent): string {
-		return `🎤 Event at #<a href='${this.subscan(meta)}'>${meta.number}</a> for ${meta.who.address} aka ${meta.who.nickname}: ${input.method.toString()}(${input.data.map((x) => x.toHuman()).join(', ')})`
+	chain(): string {
+		return `<b style="background-color: ${COLOR.Primary}">${this.meta.chain}</b>`
 	}
 
-	HTMLExtrinsic(meta: ReportMetadata, input: GenericExtrinsic<AnyTuple>): string {
-		return `📣 Extrinsic at #<a href='${this.subscan(meta)}'>${meta.number}</a> from ${meta.who.address} aka ${meta.who.nickname}: ${input.meta.name}(${input.method.args.map((x) => x.toString()).join(', ')})`
+	method(): string {
+		if (this.meta.type === ReportType.Event) {
+			return this.input.method.toString()
+		} else {
+			return (this.input as GenericExtrinsic).meta.name.toString()
+		}
 	}
 
+	data(): string {
+		if (this.meta.type === ReportType.Event) {
+			return `[${(this.input as GenericEvent).data.map((d) => this.formatData(d)).join(', ')}]`
+		} else {
+			return `[${(this.input as GenericExtrinsic).method.args.map((d) => this.formatData(d)).join(', ')}]`
+		}
+	}
+
+	HTMLTemplate(): string {
+		const { api, ...strippedMeta } = this.meta;
+		return `
+<p>
+	<ul>
+	<li>📣 <b>${this.meta.type} Notification</b> at ${this.chain()} #<a href='${this.subscan()}'>${this.meta.number}</a> aka ${new Date(this.meta.timestamp).toTimeString()}</li>
+	<li>🧾 For <i>${this.meta.who.address}</i> aka <b>${this.meta.who.nickname}</b></li>
+	<li>💻 method: <b style="background-color: ${COLOR.Primary}">${this.method()}</b></li>
+	<li>💽 data: ${this.data()}</li>
+	</ul>
+</p>
+<details>
+	<summary>Raw details</summary>
+	<code>${JSON.stringify({ ...strippedMeta, ...this.input })}</code>
+</details>
+`
+	}
+
+	rawTemplate(): string {
+		return `🎤 Event at #${this.meta.number} for ${this.meta.who.address} aka ${this.meta.who.nickname}: ${this.method()}(${this.data()}) (${this.subscan()})`
+	}
 }
 
-export class FileSystemReporter extends GenericReporter implements Reporter {
+export class FileSystemReporter implements Reporter {
 	path: string;
 	constructor(path: string) {
-		super()
 		this.path = path;
 		logger.info(`✅ registering file system reporter`)
 	}
 
-	reportExtrinsic(meta: ReportMetadata, input: GenericExtrinsic<AnyTuple>): Promise<void> {
-		appendFileSync(this.path, `${this.RawExtrinsic(meta, input)}\n`)
-		return Promise.resolve()
-	}
-	reportEvent(meta: ReportMetadata, input: GenericEvent): Promise<void> {
-		appendFileSync(this.path, `${this.RawEvent(meta, input)}\n`)
+	report(meta: ReportMetadata, input: GenericExtrinsic<AnyTuple>): Promise<void> {
+		appendFileSync(this.path, `${new GenericReporter(meta, input).rawTemplate()}\n`)
 		return Promise.resolve()
 	}
 }
 
-export class ConsoleReporter extends GenericReporter implements Reporter {
+export class ConsoleReporter implements Reporter {
 	constructor() {
-		super()
 		logger.info(`✅ registering console reporter`)
 	}
 
-	reportExtrinsic(meta: ReportMetadata, input: GenericExtrinsic<AnyTuple>): Promise<void> {
-		console.log(this.RawExtrinsic(meta, input))
-		return Promise.resolve()
-	}
-
-	reportEvent(meta: ReportMetadata, input: GenericEvent): Promise<void> {
-		console.log(this.RawEvent(meta, input))
+	report(meta: ReportMetadata, input: GenericExtrinsic<AnyTuple>): Promise<void> {
+		console.log(new GenericReporter(meta, input).rawTemplate())
 		return Promise.resolve()
 	}
 }
 
-export class EmailReporter extends GenericReporter implements Reporter {
+export class EmailReporter implements Reporter {
 	maybePubkey: openpgp.Key | undefined;
 	transporter: nodemailer.Transporter;
 	from: string;
-	to: string;
+	to: string[];
 
-	constructor(config: any) {
-		super();
-
+	constructor(config: EmailConfig) {
 		if (config.transporter["dkim"]) {
 			config.transporter["dkim"]["privateKey"] = readFileSync(config.transporter["dkim"]["privateKey"]).toString()
 		}
@@ -123,34 +161,29 @@ export class EmailReporter extends GenericReporter implements Reporter {
 	}
 
 	async sendEmail(subject: string, text: string): Promise<void> {
-		await this.transporter.sendMail({
-			from: this.from,
-			to: this.to,
-			subject,
-			html: await this.maybeEncrypt(text),
-		});
+		await Promise.all(this.to.map(async (to) =>
+			this.transporter.sendMail({
+				from: this.from,
+				to,
+				subject,
+				html: await this.maybeEncrypt(text),
+			})
+		));
 	}
 
-	async reportExtrinsic(meta: ReportMetadata, input: GenericExtrinsic<AnyTuple>): Promise<void> {
+	async report(meta: ReportMetadata, input: GenericExtrinsic<AnyTuple>): Promise<void> {
+		const content = new GenericReporter(meta, input).HTMLTemplate();
 		await this.sendEmail(
 			`extrinsic notification in ${meta.chain}`,
-			this.HTMLExtrinsic(meta, input)
-		)
-	}
-
-	async reportEvent(meta: ReportMetadata, input: GenericEvent): Promise<void> {
-		await this.sendEmail(
-			`event notification in ${meta.chain}`,
-			this.HTMLEvent(meta, input)
+			content,
 		)
 	}
 }
 
-export class MatrixReporter extends GenericReporter implements Reporter {
+export class MatrixReporter implements Reporter {
 	client: sdk.MatrixClient;
 	roomId: string;
 	constructor(config: any) {
-		super();
 		this.client = sdk.createClient({
 			baseUrl: config.server,
 			accessToken: config.accessToken,
@@ -159,18 +192,15 @@ export class MatrixReporter extends GenericReporter implements Reporter {
 		this.roomId = config.roomId;
 		logger.info(`✅ registering matrix reporter from ${config.userId} to ${this.roomId}@${config.server}.`)
 	}
-	async reportEvent(meta: ReportMetadata, input: GenericEvent): Promise<void> {
-		const content = {
-			"body": this.RawEvent(meta, input),
-			"msgtype": "m.text"
-		};
-		await this.client.sendEvent(this.roomId, "m.room.message", content, "");
-	}
 
-	async reportExtrinsic(meta: ReportMetadata, input: GenericExtrinsic<AnyTuple>): Promise<void> {
+	async report(meta: ReportMetadata, input: GenericExtrinsic<AnyTuple>): Promise<void> {
+		const innerContent = new GenericReporter(meta, input).HTMLTemplate();
 		const content = {
-			"body": this.RawExtrinsic(meta, input),
-			"msgtype": "m.text"
+			"formatted_body": innerContent,
+			"body": innerContent,
+			"msgtype": "m.text",
+			"format": "org.matrix.custom.html",
+
 		};
 		await this.client.sendEvent(this.roomId, "m.room.message", content, "");
 	}
