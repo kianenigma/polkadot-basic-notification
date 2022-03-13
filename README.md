@@ -38,15 +38,20 @@ You need to provide one configuration file to the program, which specifies 3 thi
 
 A documented examples is as follows:
 
-```json
+```javascript
 {
-	// your list of accounts. It should be ["<ss58_address>", "<account_nickname>"]["<ss58_address>", "<account_nickname>"]. For chains that use ethereum based accounts (e.g. moonbeam), just use your account's public key as hex (`0xabc..`).
+	// your list of accounts. It should be ["<ss58_address>", "<account_nickname>"]
+	// ["<ss58_address>", "<account_nickname>"]. For chains that use ethereum based accounts (e.g.
+	// moonbeam), just use your account's public key as hex (`0xabc..`).
 	"accounts": [
 		["<ss58_address>", "<account_nickname>"],
 		["<ss58_address>", "<my-main-account>"],
 		["<ss58_address>", "<my-secondary-account>"],
 	],
-	// a list of ws-endpoint to which we start to listen. For example, Polkadot's is "wss://rpc.polkadot.io". The cool thing here is that ANY substrate-based chain will work, so you can add accounts from parachains (Acala, Statemine), solo-chains (Aleph-zero), or even ethereum-based chains like moonbeam.
+	// a list of ws-endpoint to which we start to listen. For example, Polkadot's is "wss://rpc.
+	// polkadot.io". The cool thing here is that ANY substrate-based chain will work, so you can add
+	// accounts from parachains (Acala, Statemine), solo-chains (Aleph-zero), or even ethereum-based
+	// chains like moonbeam.
 	"endpoints": [
 		"wss://rpc.polkadot.io",
 		"wss://statemine-rpc.polkadot.io",
