@@ -7,7 +7,7 @@ import * as openpgp from 'openpgp';
 import * as sdk from "matrix-js-sdk";
 import { appendFileSync } from "fs";
 import { readFileSync } from 'fs'
-import { EmailConfig, ExtendedAccount, MatrixConfig, ReportType } from "..";
+import { EmailConfig, ExtendedAccount, FsConfig, MatrixConfig, ReportType } from "..";
 import { ApiPromise } from "@polkadot/api";
 
 enum COLOR {
@@ -97,8 +97,8 @@ export class GenericReporter  {
 
 export class FileSystemReporter implements Reporter {
 	path: string;
-	constructor(path: string) {
-		this.path = path;
+	constructor(config: FsConfig) {
+		this.path = config.path;
 		logger.info(`✅ registering file system reporter`)
 	}
 

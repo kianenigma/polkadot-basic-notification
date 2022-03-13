@@ -11,8 +11,7 @@ const argv = yargs(process.argv.slice(2))
 	.option('c', {
 		type: 'string',
 		description: 'path to a JSON file with your config in it.',
-		required: true,
-		demandOption: true,
+		default: process.env.DOT_NOTIF_CONF,
 	}).parseSync()
 
 export enum ReportType {
@@ -39,16 +38,26 @@ export interface MatrixConfig {
 	server: string,
 }
 
-interface ReportersConfig {
-	email?: EmailConfig,
-	matrix?: any,
-	fs?: any,
-	console?: any
+export interface FsConfig {
+	path: string,
 }
 
-interface ConfigInterface {
+interface ReportersConfig {
+	email?: EmailConfig,
+	matrix?: MatrixConfig,
+	fs?: FsConfig,
+	console?: any,
+}
+
+enum Subscription {
+	Head = "head",
+	Finalized = "finalized",
+}
+
+interface AppConfig {
 	accounts: [string, string][],
 	endpoints: string[],
+	listen: Subscription,
 	reporters: ReportersConfig,
 }
 
@@ -85,28 +94,39 @@ async function perHeader(chain: string, api: ApiPromise, header: Header, account
 	}
 }
 
-async function listenChain(ws: string, accounts: [string, string][], reporters: Reporter[]) {
+async function listenChain(ws: string, subscription: Subscription, accounts: [string, string][], reporters: Reporter[]): Promise<void> {
 	const provider = new WsProvider(ws);
 	const api = await ApiPromise.create({ provider });
 
 	const extendedAccounts: ExtendedAccount[] = accounts.map(([s, n]) => { return { address: api.createType('Address', s), nickname: n } });
 	const chain = (await api.rpc.system.chain()).toString()
-	logger.info(`⛓ Connected to [${ws}] ${chain} [ss58: ${api.registry.chainSS58}]`)
+	const subFn = subscription == Subscription.Head ? api.rpc.chain.subscribeNewHeads: api.rpc.chain.subscribeFinalizedHeads;
 
-	const unsub = await api.rpc.chain.subscribeNewHeads(async (header) => {
+	logger.info(`⛓ Connected to [${ws}] ${chain} [ss58: ${api.registry.chainSS58}] [listening: ${subscription}]`)
+	const unsub = await subFn(async (header) => {
 		logger.debug(`checking block ${header.hash} of ${chain}`);
 		await perHeader(chain, api, header, extendedAccounts, reporters)
 	});
 }
 
-async function listAllChains(config: ConfigInterface, reporters: Reporter[]) {
-	const _ = await Promise.all(config.endpoints.map((c) => listenChain(c, config.accounts, reporters)));
+async function listAllChains(config: AppConfig, reporters: Reporter[]) {
+	const _ = await Promise.all(config.endpoints.map((c) => listenChain(c, config.listen, config.accounts, reporters)));
 	// a rather wacky way to make sure this function never returns.
 	return new Promise(() => {});
 }
 
 async function main() {
-	const config: ConfigInterface = JSON.parse(readFileSync(argv.c).toString());
+	if (!argv.c) {
+		logger.error('-c or DOT_NOTIF_CONF env variable must specify a config file');
+		process.exit(1);
+	}
+	const config: AppConfig = JSON.parse(readFileSync(argv.c).toString());
+
+	if (config.listen !== Subscription.Finalized && config.listen !== Subscription.Head) {
+		logger.warn(`"listen" config not provided or invalid (${config.listen}), overwriting to ${Subscription.Finalized}`);
+		config.listen = Subscription.Finalized;
+	}
+
 	const reporters: Reporter[] = [];
 	for (const reporterType in config.reporters) {
 		if (reporterType === "email") {
@@ -118,7 +138,7 @@ async function main() {
 			reporters.push(new ConsoleReporter())
 		}
 		if (reporterType === "fs") {
-			reporters.push(new FileSystemReporter(config.reporters[reporterType]["path"]))
+			reporters.push(new FileSystemReporter(config.reporters[reporterType] as FsConfig))
 		}
 		if (reporterType === "matrix") {
 			const reporter = new MatrixReporter(config.reporters[reporterType] as MatrixConfig);
