@@ -9,6 +9,10 @@ import { appendFileSync } from "fs";
 import { readFileSync } from 'fs'
 import { EmailConfig, ExtendedAccount, FsConfig, MatrixConfig, ReportType } from "..";
 import { ApiPromise } from "@polkadot/api";
+import { runInNewContext } from "vm";
+import { IncomingRoomKeyRequest } from "matrix-js-sdk/lib/crypto";
+
+const MAX_FORMATTED_MSG_LEN = 256;
 
 enum COLOR {
 	Primary = "#a3e4d7",
@@ -41,12 +45,16 @@ export class GenericReporter  {
 		this.meta = meta;
 	}
 
+	trimStr(str: string): string {
+		return str.length < MAX_FORMATTED_MSG_LEN ? str : `${str.substring(0, MAX_FORMATTED_MSG_LEN / 2)}..${str.substring(str.length - MAX_FORMATTED_MSG_LEN / 2, str.length)}`
+	}
+
 	formatData(data: Codec): string {
 		const r = data.toRawType().toLowerCase();
 		if (r == "u128" || r.toLowerCase() == "balance") {
 			return this.meta.api.createType('Balance', data).toHuman()
 		} else {
-			return data.toString()
+			return this.trimStr(data.toString())
 		}
 	}
 
@@ -75,17 +83,27 @@ export class GenericReporter  {
 	}
 
 	HTMLTemplate(): string {
-		const { api, ...strippedMeta } = this.meta;
+		const { api, inputs, ...withoutApi } = this.meta;
+		const trimmedInputs = inputs.map(({ account, type, inner }) => { return { account, type, inner: this.trimStr(inner.toString())}});
+		// @ts-ignore
+		withoutApi.inputs = trimmedInputs;
 		return `
 <p>
 	<p>📣 <b> Notification</b> at ${this.chain()} #<a href='${this.subscan()}'>${this.meta.number}</a> aka ${new Date(this.meta.timestamp).toTimeString()}</p>
 	<ul>
-		${this.meta.inputs.map((i) => `<li>💻 type: ${i.type} | for <b style="background-color: ${COLOR.Primary}">${i.account.nickname}</b> (${i.account.address}) | method: <b style="background-color: ${COLOR.Primary}">${this.method(i)}</b> | data: ${this.data(i)}</li>`)}
+		${this.meta.inputs.map((i) => `
+		<li>
+			💻 type: ${i.type} |
+			for <b style="background-color: ${COLOR.Primary}">${i.account.nickname}</b> (${i.account.address}) |
+			method: <b style="background-color: ${COLOR.Primary}">${this.method(i)}</b> |
+			data: ${this.data(i)}
+		</li>`
+	)}
 	</ul>
 </p>
 <details>
 	<summary>Raw details</summary>
-	<code>${JSON.stringify(strippedMeta)}</code>
+	<code>${JSON.stringify(withoutApi)}</code>
 </details>
 `
 	}
