@@ -31,7 +31,7 @@ transport mechanism, i.e. how you want to be notified. Current implementations a
 3. File system, writing to a file.
 4. Console, only sensible for testing.
 
-### How to use
+## How to use
 
 You need to provide one configuration file to the program, which specifies 3 things:
 
@@ -119,7 +119,7 @@ A documented examples is as follows:
 You can mix and match different reporters with different configs together.
 
 
-### Deployment
+## Deployment
 
 I made this project to be as easy as possible to deploy, so that you don't need to rely on a 3rd
 party service to receive notifications for your accounts. Although, in the above examples, you are
