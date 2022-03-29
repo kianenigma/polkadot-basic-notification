@@ -37,7 +37,8 @@ You need to provide one configuration file to the program, which specifies 3 thi
 
 1. which accounts you want to monitor.
 2. which chains you want to monitor.
-3. which reporters you want to use.
+3. which methods you want to monitor.
+4. which reporters you want to use.
 
 A documented examples is as follows:
 
@@ -62,6 +63,13 @@ A documented examples is as follows:
 		"wss://wss.api.moonbeam.network",
 		"wss://ws.azero.dev"
 	],
+	// a case-sensitive list of methods that you want to subscribe to to. A 'method' is either the
+	// name of a transaction (usually lower_snake_case) or an event name (usually lowerCamelCase).
+	// Correct values are: 'all', or { 'ignore': [<method-name>, ..] }, or { 'only':
+	// [<method-name>, ..]  }. Examples:
+	// method_subscription: { "only": ['transfer'] }
+	// method_subscription: { "ignore": ['Rewarded', "Deposited"] }
+	"method_subscription": 'all',
 	// This is where you specify which reporters you want to use.
 	"reporters": {
 		// if provided, report all events to a matrix room.

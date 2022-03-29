@@ -9,13 +9,19 @@ import { appendFileSync } from "fs";
 import { readFileSync } from 'fs'
 import { EmailConfig, ExtendedAccount, FsConfig, MatrixConfig, ReportType } from "..";
 import { ApiPromise } from "@polkadot/api";
-import { runInNewContext } from "vm";
-import { IncomingRoomKeyRequest } from "matrix-js-sdk/lib/crypto";
 
 const MAX_FORMATTED_MSG_LEN = 256;
 
 enum COLOR {
 	Primary = "#a3e4d7",
+}
+
+export function methodOf(input: ReportInput): string {
+	if (input.type === ReportType.Event) {
+		return input.inner.method.toString()
+	} else {
+		return (input.inner as GenericExtrinsic).meta.name.toString()
+	}
 }
 
 interface ReportInput {
@@ -67,11 +73,7 @@ export class GenericReporter  {
 	}
 
 	method(input: ReportInput): string {
-		if (input.type === ReportType.Event) {
-			return input.inner.method.toString()
-		} else {
-			return (input.inner as GenericExtrinsic).meta.name.toString()
-		}
+		return methodOf(input)
 	}
 
 	data(input: ReportInput): string {
