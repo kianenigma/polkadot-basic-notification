@@ -88,7 +88,7 @@ function methodFilter(method: string, sub: MethodSubscription): boolean {
 		return only.some((o) => o === method)
 	} else if (Object.keys(sub).includes("ignore")) {
 		const ignore = (sub as Ignore).ignore;
-		return !ignore.every((i) => i === method)
+		return !ignore.includes(method)
 	} else {
 		logger.warn('nor parsable value for "method_subscription", accepting method anyways.. use explicit "all".');
 		return true
