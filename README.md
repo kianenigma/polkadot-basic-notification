@@ -79,7 +79,7 @@ A documented examples is as follows:
 			// the access token of the aforementioned user.
 			"accessToken": "..",
 			// the id of the room to which you will send the message.
-			"roomId": "!ggiWRxQNogSKcQWUiu:matrix.parity.io",
+			"roomId": "..",
 			// the serve in which your user exist.
 			"server": "https://matrix.org"
 		},
