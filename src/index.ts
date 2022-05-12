@@ -169,9 +169,9 @@ async function main() {
 	}
 
 	const config: AppConfig = JSON.parse(readFileSync(argv.c).toString());
-	const missingFiled = missingAppConfig(config);
-	if (missingFiled) {
-		logger.error(`missing some key in config file: ${missingFiled}`);
+	const missingField = missingAppConfig(config);
+	if (missingField) {
+		logger.error(`missing some key in config file: ${missingField}`);
 		process.exit(1);
 	}
 
