@@ -6,8 +6,7 @@ import { readFileSync } from 'fs';
 import { logger } from "./logger";
 import { ConsoleReporter, EmailReporter, FileSystemReporter, MatrixReporter, methodOf, Report, Reporter } from "./reporters"
 import yargs from "yargs";
-import { addAbortSignal } from "stream";
-import { assert } from "console";
+import { GenericEvent, GenericExtrinsic } from "@polkadot/types";
 
 const argv = yargs(process.argv.slice(2))
 	.option('c', {
@@ -82,6 +81,40 @@ function missingAppConfig(arg: any): string {
 	return ""
 }
 
+interface Matched {
+	with: ExtendedAccount
+}
+
+type MatchOutcome = false | Matched | true;
+
+function matchEventToAccounts(event: GenericEvent, accounts: ExtendedAccount[]): MatchOutcome {
+	if (accounts.length == 0) {
+		return true
+	} else {
+		const maybeMatch = accounts.find((e) => event.data.toString().includes(e.address.toString()));
+		if (maybeMatch) {
+			return { with: maybeMatch }
+		} else {
+			return false
+		}
+	}
+}
+
+function matchExtrinsicToAccounts(ext: GenericExtrinsic, accounts: ExtendedAccount[]): MatchOutcome {
+	if (accounts.length == 0) {
+		return true
+	} else {
+		const maybeMatch =
+			accounts.find((e) => e.address.eq(ext.signer)) ||
+			accounts.find((e) => ext.toString().includes(e.address.toString()));
+		if (maybeMatch) {
+			return { with: maybeMatch }
+		} else {
+			return false
+		}
+	}
+}
+
 function methodFilter(method: string, sub: MethodSubscription): boolean {
 	if (Object.keys(sub).includes("only")) {
 		const only = (sub as Only).only;
@@ -90,7 +123,7 @@ function methodFilter(method: string, sub: MethodSubscription): boolean {
 		const ignore = (sub as Ignore).ignore;
 		return !ignore.includes(method)
 	} else {
-		logger.warn('nor parsable value for "method_subscription", accepting method anyways.. use explicit "all".');
+		logger.warn('no parsable value for "method_subscription", accepting method anyways.. use explicit "all".');
 		return true
 	}
 }
@@ -114,9 +147,21 @@ async function perHeader(
 	const report: Report = { api, hash, chain, number, timestamp, inputs: [] }
 	for (const ext of extrinsics) {
 		const type = ReportType.Extrinsic;
-		const maybeMatch = accounts.find((e) => e.address.eq(ext.signer)) || accounts.find((e) => ext.toString().includes(e.address.toString()));
-		if (maybeMatch) {
-			const reportInput = {account: maybeMatch, type, inner: ext };
+		const matchOutcome = matchExtrinsicToAccounts(ext, accounts);
+		if (matchOutcome === true) {
+			// it is a wildcard.
+			const account: ExtendedAccount = { address: api.createType('Address', new Uint8Array(32)), nickname: "WILDCARD" }
+			const reportInput = { account, type, inner: ext };
+			const method = methodOf(reportInput);
+			if (methodFilter(method, methodSub)) {
+				report.inputs.push(reportInput)
+			}
+		} else if (matchOutcome === false) {
+			// it did not match.
+		} else {
+			// it matched with an account.
+			const matched = matchOutcome.with;
+			const reportInput = {account: matched, type, inner: ext };
 			const method = methodOf(reportInput);
 			if (methodFilter(method, methodSub)) {
 				report.inputs.push(reportInput)
@@ -125,10 +170,22 @@ async function perHeader(
 	}
 
 	for (const event of events.map(e => e.event)) {
-		const type = ReportType.Event
-		const maybeMatch = accounts.find((e) => event.data.toString().includes(e.address.toString()));
-		if (maybeMatch) {
-			const reportInput = {account: maybeMatch, type, inner: event };
+		const type = ReportType.Event;
+		const matchOutcome = matchEventToAccounts(event, accounts);
+		if (matchOutcome === true) {
+			// it is a wildcard.
+			const account: ExtendedAccount = { address: api.createType('Address', new Uint8Array(32)), nickname: "WILDCARD" }
+			const reportInput = { account, type, inner: event };
+			const method = methodOf(reportInput);
+			if (methodFilter(method, methodSub)) {
+				report.inputs.push(reportInput)
+			}
+		} else if (matchOutcome === false) {
+			// it did not match.
+		} else {
+			// it matched with an account.
+			const matched = matchOutcome.with;
+			const reportInput = {account: matched, type, inner: event };
 			const method = methodOf(reportInput);
 			if (methodFilter(method, methodSub)) {
 				report.inputs.push(reportInput)
@@ -199,7 +256,12 @@ async function main() {
 		}
 	}
 
-	config.accounts.forEach(([address, nick]) => logger.info(`📇 registering address ${address} aka ${nick}.`))
+	if (config.accounts.length) {
+		config.accounts.forEach(([address, nick]) => logger.info(`📇 registering address ${address} aka ${nick}.`))
+	} else {
+		logger.info(`⚠️ no list of accounts provided, this will match with anything.`);
+	}
+	logger.info(`👂 method subscription: ${JSON.stringify(config.method_subscription)}`);
 
 	const retry = true;
 	while (retry) {

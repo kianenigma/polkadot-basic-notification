@@ -47,6 +47,10 @@ A documented examples is as follows:
 	// your list of accounts. It should be ["<ss58_address>", "<account_nickname>"]
 	// ["<ss58_address>", "<account_nickname>"]. For chains that use ethereum based accounts (e.g.
 	// moonbeam), just use your account's public key as hex (`0xabc..`).
+	//
+	// If the list is empty, then no account filter is applied. This means that all events and
+	// transactions will match. Using this is only sensible with `method_subscription: { "only": ..
+	// `}. See `wildcard-config-example.json`
 	"accounts": [
 		["<ss58_address>", "<account_nickname>"],
 		["<ss58_address>", "<my-main-account>"],
