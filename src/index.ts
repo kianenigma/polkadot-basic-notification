@@ -68,7 +68,7 @@ interface AppConfig {
 	accounts: [string, string][],
 	endpoints: string[],
 	method_subscription: MethodSubscription,
-	listen: ApiSubscription,
+	listen?: any,
 	reporters: ReportersConfig,
 }
 
@@ -76,7 +76,6 @@ function missingAppConfig(arg: any): string {
 	if (!arg.accounts) return "accounts";
 	if (!arg.endpoints) return "endpoints";
 	if (!arg.method_subscription) return "method_subscription";
-	if (!arg.listen) return "listen";
 	if (!arg.reporters) return "reporters";
 	return ""
 }
@@ -226,9 +225,9 @@ async function main() {
 	}
 
 	const config: AppConfig = JSON.parse(readFileSync(argv.c).toString());
-	const missingFiled = missingAppConfig(config);
-	if (missingFiled) {
-		logger.error(`missing some key in config file: ${missingFiled}`);
+	const missingField = missingAppConfig(config);
+	if (missingField) {
+		logger.error(`missing some key in config file: ${missingField}`);
 		process.exit(1);
 	}
 

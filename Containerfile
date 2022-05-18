@@ -1,8 +1,10 @@
-FROM nikolaik/python-nodejs:python3.10-nodejs17-alpine
+FROM node:lts-alpine
 WORKDIR /app/
 
 COPY package.json yarn.lock ./
 RUN yarn --frozen-lockfile
 
 COPY . .
+
+ARG CONF
 CMD yarn run start -c $CONF
