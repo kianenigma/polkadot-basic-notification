@@ -1,23 +1,30 @@
 {
-	"compilerOptions": {
-		"target": "es6",
-		"module": "commonjs",
-		"lib": [
-			"es6"
-		],
-		"outDir": "build",
+    "compilerOptions": {
+        "target": "es6",
+        "module": "commonjs",
+        "lib": [
+            "es6"
+        ],
+        "strict": true,
+        "noImplicitAny": true,
+        "strictNullChecks": true,
+        "strictFunctionTypes": true,
+        "strictPropertyInitialization": true,
+        "noImplicitThis": true,
+        "alwaysStrict": true,
 
-		// Some compiling checks.
-		"strict": true,
-		"noImplicitAny": true,
-		"strictNullChecks": true,
-		"strictFunctionTypes": true,
-		"strictPropertyInitialization": true,
-		"noImplicitThis": true,
-		"alwaysStrict": true,
-	},
-	"exclude": [
-		"./pm2.config.js"
-	]
+        "allowJs": false,
+        "skipLibCheck": true,
+        "esModuleInterop": false,
+        "allowSyntheticDefaultImports": true,
+        "forceConsistentCasingInFileNames": true,
+        "moduleResolution": "Node",
+        "resolveJsonModule": true,
+        "isolatedModules": true,
+
+        "outDir": "dist"
+    },
+    "include": ["src/**/*.ts"],
+    "exclude": ["node_modules"]
 }
 
