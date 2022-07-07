@@ -4,9 +4,13 @@ import "@polkadot/api-augment";
 import "@polkadot/types-augment";
 import { readFileSync } from 'fs';
 import { logger } from "./logger";
-import { ConsoleReporter, EmailReporter, FileSystemReporter, MatrixReporter, methodOf, Report, Reporter } from "./reporters"
+import { ConsoleReporter, EmailReporter, FileSystemReporter, MatrixReporter, methodOf, palletOf, Report, Reporter } from "./reporters"
 import yargs from "yargs";
 import { GenericEvent, GenericExtrinsic } from "@polkadot/types";
+
+// TODO: make the accounts list in config be also a named object
+// TODO: move types to a separate file
+// TODO: check skipped finalized blocks.
 
 const argv = yargs(process.argv.slice(2))
 	.option('c', {
@@ -57,12 +61,39 @@ enum ApiSubscription {
 
 // my best effort at creating rust-style enums, as per explained here: https://www.jmcelwa.in/posts/rust-like-enums/
 interface Only {
-	only: string[],
+	only: ISubscriptionTarget[],
 }
 interface Ignore {
-	ignore: string[]
+	ignore: ISubscriptionTarget[]
 }
 type MethodSubscription = "all" | Only | Ignore;
+
+interface ISubscriptionTarget {
+	pallet: string,
+	method: string,
+}
+
+class SubscriptionTarget implements ISubscriptionTarget {
+	pallet: string;
+	method: string;
+
+	constructor(i: ISubscriptionTarget) {
+		this.pallet = i.pallet;
+		this.method = i.method
+	}
+
+	matchPallet(pallet: string): boolean {
+		return this.pallet === "*" || this.pallet === pallet
+	}
+
+	matchMethod(method: string): boolean {
+		return  this.method === "*" || this.method === method
+	}
+
+	match(t: ISubscriptionTarget): boolean {
+		return this.matchPallet(t.pallet) &&	this.matchMethod(t.method)
+	}
+}
 
 interface AppConfig {
 	accounts: [string, string][],
@@ -114,13 +145,13 @@ function matchExtrinsicToAccounts(ext: GenericExtrinsic, accounts: ExtendedAccou
 	}
 }
 
-function methodFilter(method: string, sub: MethodSubscription): boolean {
+function subscriptionFilter(t: ISubscriptionTarget, sub: MethodSubscription): boolean {
 	if (Object.keys(sub).includes("only")) {
 		const only = (sub as Only).only;
-		return only.some((o) => o === method)
+		return only.some((o) => new SubscriptionTarget(o).match(t))
 	} else if (Object.keys(sub).includes("ignore")) {
 		const ignore = (sub as Ignore).ignore;
-		return !ignore.includes(method)
+		return !ignore.find((o) => new SubscriptionTarget(o).match(t))
 	} else {
 		logger.warn('no parsable value for "method_subscription", accepting method anyways.. use explicit "all".');
 		return true
@@ -151,8 +182,9 @@ async function perHeader(
 			// it is a wildcard.
 			const account: ExtendedAccount = { address: api.createType('Address', new Uint8Array(32)), nickname: "WILDCARD" }
 			const reportInput = { account, type, inner: ext };
+			const pallet = palletOf(reportInput);
 			const method = methodOf(reportInput);
-			if (methodFilter(method, methodSub)) {
+			if (subscriptionFilter({ pallet, method }, methodSub)) {
 				report.inputs.push(reportInput)
 			}
 		} else if (matchOutcome === false) {
@@ -161,8 +193,9 @@ async function perHeader(
 			// it matched with an account.
 			const matched = matchOutcome.with;
 			const reportInput = {account: matched, type, inner: ext };
+			const pallet = palletOf(reportInput);
 			const method = methodOf(reportInput);
-			if (methodFilter(method, methodSub)) {
+			if (subscriptionFilter({ pallet, method }, methodSub)) {
 				report.inputs.push(reportInput)
 			}
 		}
@@ -175,8 +208,9 @@ async function perHeader(
 			// it is a wildcard.
 			const account: ExtendedAccount = { address: api.createType('Address', new Uint8Array(32)), nickname: "WILDCARD" }
 			const reportInput = { account, type, inner: event };
+			const pallet = palletOf(reportInput);
 			const method = methodOf(reportInput);
-			if (methodFilter(method, methodSub)) {
+			if (subscriptionFilter({ pallet, method }, methodSub)) {
 				report.inputs.push(reportInput)
 			}
 		} else if (matchOutcome === false) {
@@ -185,8 +219,9 @@ async function perHeader(
 			// it matched with an account.
 			const matched = matchOutcome.with;
 			const reportInput = {account: matched, type, inner: event };
+			const pallet = palletOf(reportInput);
 			const method = methodOf(reportInput);
-			if (methodFilter(method, methodSub)) {
+			if (subscriptionFilter({ pallet, method }, methodSub)) {
 				report.inputs.push(reportInput)
 			}
 		}

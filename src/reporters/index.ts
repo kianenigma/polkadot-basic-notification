@@ -16,11 +16,23 @@ enum COLOR {
 	Primary = "#a3e4d7",
 }
 
+/// Method of a transaction or an event, e.g. `transfer` or `Deposited`.
 export function methodOf(input: ReportInput): string {
 	if (input.type === ReportType.Event) {
 		return input.inner.method.toString()
 	} else {
 		return (input.inner as GenericExtrinsic).meta.name.toString()
+	}
+}
+
+/// Pallet of a transaction or an event, e.g. `Balances` or `System`.
+export function palletOf(input: ReportInput): string {
+	if (input.type === ReportType.Event) {
+		// TODO: there's probably a better way for this?
+		// @ts-ignore
+		return input.inner.toHuman().section
+	} else {
+		return (input.inner as GenericExtrinsic).method.section.toString()
 	}
 }
 
@@ -41,7 +53,6 @@ export interface Report {
 
 export interface Reporter {
 	report(report: Report): Promise<void>;
-
 }
 
 export class GenericReporter  {

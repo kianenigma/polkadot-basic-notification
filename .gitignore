@@ -6,4 +6,4 @@ build
 config.json
 *.log
 *.key
-config*.json
+*.ignore.json
