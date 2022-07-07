@@ -17,28 +17,30 @@ enum COLOR {
 }
 
 /// Method of a transaction or an event, e.g. `transfer` or `Deposited`.
-export function methodOf(input: ReportInput): string {
-	if (input.type === ReportType.Event) {
-		return input.inner.method.toString()
+export function methodOf(type: ReportType, input: GenericEvent | GenericExtrinsic): string {
+	if (type === ReportType.Event) {
+		return input.method.toString()
 	} else {
-		return (input.inner as GenericExtrinsic).meta.name.toString()
+		return (input as GenericExtrinsic).meta.name.toString()
 	}
 }
 
 /// Pallet of a transaction or an event, e.g. `Balances` or `System`.
-export function palletOf(input: ReportInput): string {
-	if (input.type === ReportType.Event) {
+export function palletOf(type: ReportType, input: GenericEvent | GenericExtrinsic): string {
+	if (type === ReportType.Event) {
 		// TODO: there's probably a better way for this?
 		// @ts-ignore
-		return input.inner.toHuman().section
+		return input.toHuman().section
 	} else {
-		return (input.inner as GenericExtrinsic).method.section.toString()
+		return (input as GenericExtrinsic).method.section.toString()
 	}
 }
 
 interface ReportInput {
 	account: ExtendedAccount,
 	type: ReportType,
+	pallet: string,
+	method: string,
 	inner: GenericEvent | GenericExtrinsic;
 }
 
@@ -84,7 +86,11 @@ export class GenericReporter  {
 	}
 
 	method(input: ReportInput): string {
-		return methodOf(input)
+		return input.method
+	}
+
+	pallet(input: ReportInput): string {
+		return input.pallet
 	}
 
 	data(input: ReportInput): string {
@@ -106,8 +112,8 @@ export class GenericReporter  {
 	<ul>
 		${this.meta.inputs.map((i) => `
 		<li>
-			💻 type: ${i.type} |
-			for <b style="background-color: ${COLOR.Primary}">${i.account.nickname}</b> (${i.account.address}) |
+			💻 type: ${i.type} | ${i.account === "Wildcard" ? `` : `for <b style="background-color: ${COLOR.Primary}">${i.account.nickname}</b> (${i.account.address})`}
+			pallet: <b style="background-color: ${COLOR.Primary}">${this.pallet(i)}</b> |
 			method: <b style="background-color: ${COLOR.Primary}">${this.method(i)}</b> |
 			data: ${this.data(i)}
 		</li>`
@@ -122,7 +128,7 @@ export class GenericReporter  {
 	}
 
 	rawTemplate(): string {
-		return `🎤 Events at #${this.meta.number}:  ${this.meta.inputs.map((i) => `[🧾 ${i.type} for ${i.account.nickname} | 💻 method:${this.method(i)} | 💽 data: ${this.data(i)}]`)} (${this.subscan()})`
+		return `🎤 Events at #${this.meta.number}:  ${this.meta.inputs.map((i) => `[🧾 ${i.type} ${i.account === "Wildcard" ? "" : `for ${i.account.nickname}`} | 💻 pallet: ${this.pallet(i)} - method:${this.method(i)} | 💽 data: ${this.data(i)}]`)} (${this.subscan()})`
 	}
 }
 

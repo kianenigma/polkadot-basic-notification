@@ -24,10 +24,12 @@ export enum ReportType {
 	Extrinsic = "Extrinsic",
 }
 
-export interface ExtendedAccount {
+export interface ConcreteAccount {
 	address: Address,
 	nickname: string
 }
+
+export type ExtendedAccount = ConcreteAccount | "Wildcard";
 
 export interface EmailConfig {
 	from: string,
@@ -117,7 +119,7 @@ interface Matched {
 
 type MatchOutcome = false | Matched | true;
 
-function matchEventToAccounts(event: GenericEvent, accounts: ExtendedAccount[]): MatchOutcome {
+function matchEventToAccounts(event: GenericEvent, accounts: ConcreteAccount[]): MatchOutcome {
 	if (accounts.length == 0) {
 		return true
 	} else {
@@ -130,7 +132,7 @@ function matchEventToAccounts(event: GenericEvent, accounts: ExtendedAccount[]):
 	}
 }
 
-function matchExtrinsicToAccounts(ext: GenericExtrinsic, accounts: ExtendedAccount[]): MatchOutcome {
+function matchExtrinsicToAccounts(ext: GenericExtrinsic, accounts: ConcreteAccount[]): MatchOutcome {
 	if (accounts.length == 0) {
 		return true
 	} else {
@@ -162,7 +164,7 @@ async function perHeader(
 	chain: string,
 	api: ApiPromise,
 	header: Header,
-	accounts: ExtendedAccount[],
+	accounts: ConcreteAccount[],
 	reporters: Reporter[],
 	methodSub: MethodSubscription
 ) {
@@ -180,10 +182,10 @@ async function perHeader(
 		const matchOutcome = matchExtrinsicToAccounts(ext, accounts);
 		if (matchOutcome === true) {
 			// it is a wildcard.
-			const account: ExtendedAccount = { address: api.createType('Address', new Uint8Array(32)), nickname: "WILDCARD" }
-			const reportInput = { account, type, inner: ext };
-			const pallet = palletOf(reportInput);
-			const method = methodOf(reportInput);
+			const account: ExtendedAccount = "Wildcard";
+			const pallet = palletOf(type, ext);
+			const method = methodOf(type, ext);
+			const reportInput = { account, type, inner: ext, pallet, method };
 			if (subscriptionFilter({ pallet, method }, methodSub)) {
 				report.inputs.push(reportInput)
 			}
@@ -192,9 +194,9 @@ async function perHeader(
 		} else {
 			// it matched with an account.
 			const matched = matchOutcome.with;
-			const reportInput = {account: matched, type, inner: ext };
-			const pallet = palletOf(reportInput);
-			const method = methodOf(reportInput);
+			const pallet = palletOf(type, ext);
+			const method = methodOf(type, ext);
+			const reportInput = {account: matched, type, inner: ext, method, pallet };
 			if (subscriptionFilter({ pallet, method }, methodSub)) {
 				report.inputs.push(reportInput)
 			}
@@ -206,11 +208,11 @@ async function perHeader(
 		const matchOutcome = matchEventToAccounts(event, accounts);
 		if (matchOutcome === true) {
 			// it is a wildcard.
-			const account: ExtendedAccount = { address: api.createType('Address', new Uint8Array(32)), nickname: "WILDCARD" }
-			const reportInput = { account, type, inner: event };
-			const pallet = palletOf(reportInput);
-			const method = methodOf(reportInput);
-			if (subscriptionFilter({ pallet, method }, methodSub)) {
+			const account: ExtendedAccount = "Wildcard"
+			const pallet = palletOf(type, event);
+			const method = methodOf(type, event);
+			const reportInput = { account, type, inner: event, pallet, method };
+			if (subscriptionFilter({ pallet, method, }, methodSub)) {
 				report.inputs.push(reportInput)
 			}
 		} else if (matchOutcome === false) {
@@ -218,9 +220,9 @@ async function perHeader(
 		} else {
 			// it matched with an account.
 			const matched = matchOutcome.with;
-			const reportInput = {account: matched, type, inner: event };
-			const pallet = palletOf(reportInput);
-			const method = methodOf(reportInput);
+			const pallet = palletOf(type, event);
+			const method = methodOf(type, event);
+			const reportInput = {account: matched, type, inner: event, pallet, method };
 			if (subscriptionFilter({ pallet, method }, methodSub)) {
 				report.inputs.push(reportInput)
 			}
@@ -236,14 +238,14 @@ async function listenChain(ws: string, subscription: ApiSubscription, accounts: 
 	const provider = new WsProvider(ws);
 	const api = await ApiPromise.create({ provider });
 
-	const extendedAccounts: ExtendedAccount[] = accounts.map(([s, n]) => { return { address: api.createType('Address', s), nickname: n } });
+	const targetAccounts: ConcreteAccount[] = accounts.map(([s, n]) => { return { address: api.createType('Address', s), nickname: n } });
 	const chain = (await api.rpc.system.chain()).toString()
 	const subFn = subscription == ApiSubscription.Head ? api.rpc.chain.subscribeNewHeads: api.rpc.chain.subscribeFinalizedHeads;
 
 	logger.info(`⛓ Connected to [${ws}] ${chain} [ss58: ${api.registry.chainSS58}] [listening: ${subscription}]`)
 	const unsub = await subFn(async (header) => {
-		logger.debug(`checking block ${header.hash} of ${chain}`);
-		await perHeader(chain, api, header, extendedAccounts, reporters, methodSub)
+		logger.debug(`checking block ${header.number} ${header.hash} of ${chain}`);
+		await perHeader(chain, api, header, targetAccounts, reporters, methodSub)
 	});
 }
 
