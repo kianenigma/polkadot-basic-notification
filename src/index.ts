@@ -4,9 +4,13 @@ import "@polkadot/api-augment";
 import "@polkadot/types-augment";
 import { readFileSync } from 'fs';
 import { logger } from "./logger";
-import { ConsoleReporter, EmailReporter, FileSystemReporter, MatrixReporter, methodOf, Report, Reporter } from "./reporters"
+import { ConsoleReporter, EmailReporter, FileSystemReporter, MatrixReporter, methodOf, palletOf, Report, Reporter } from "./reporters"
 import yargs from "yargs";
 import { GenericEvent, GenericExtrinsic } from "@polkadot/types";
+
+// TODO: make the accounts list in config be also a named object
+// TODO: move types to a separate file
+// TODO: check skipped finalized blocks.
 
 const argv = yargs(process.argv.slice(2))
 	.option('c', {
@@ -20,10 +24,12 @@ export enum ReportType {
 	Extrinsic = "Extrinsic",
 }
 
-export interface ExtendedAccount {
+export interface ConcreteAccount {
 	address: Address,
 	nickname: string
 }
+
+export type ExtendedAccount = ConcreteAccount | "Wildcard";
 
 export interface EmailConfig {
 	from: string,
@@ -57,12 +63,39 @@ enum ApiSubscription {
 
 // my best effort at creating rust-style enums, as per explained here: https://www.jmcelwa.in/posts/rust-like-enums/
 interface Only {
-	only: string[],
+	only: ISubscriptionTarget[],
 }
 interface Ignore {
-	ignore: string[]
+	ignore: ISubscriptionTarget[]
 }
 type MethodSubscription = "all" | Only | Ignore;
+
+interface ISubscriptionTarget {
+	pallet: string,
+	method: string,
+}
+
+class SubscriptionTarget implements ISubscriptionTarget {
+	pallet: string;
+	method: string;
+
+	constructor(i: ISubscriptionTarget) {
+		this.pallet = i.pallet;
+		this.method = i.method
+	}
+
+	matchPallet(pallet: string): boolean {
+		return this.pallet === "*" || this.pallet === pallet
+	}
+
+	matchMethod(method: string): boolean {
+		return  this.method === "*" || this.method === method
+	}
+
+	match(t: ISubscriptionTarget): boolean {
+		return this.matchPallet(t.pallet) &&	this.matchMethod(t.method)
+	}
+}
 
 interface AppConfig {
 	accounts: [string, string][],
@@ -86,7 +119,7 @@ interface Matched {
 
 type MatchOutcome = false | Matched | true;
 
-function matchEventToAccounts(event: GenericEvent, accounts: ExtendedAccount[]): MatchOutcome {
+function matchEventToAccounts(event: GenericEvent, accounts: ConcreteAccount[]): MatchOutcome {
 	if (accounts.length == 0) {
 		return true
 	} else {
@@ -99,7 +132,7 @@ function matchEventToAccounts(event: GenericEvent, accounts: ExtendedAccount[]):
 	}
 }
 
-function matchExtrinsicToAccounts(ext: GenericExtrinsic, accounts: ExtendedAccount[]): MatchOutcome {
+function matchExtrinsicToAccounts(ext: GenericExtrinsic, accounts: ConcreteAccount[]): MatchOutcome {
 	if (accounts.length == 0) {
 		return true
 	} else {
@@ -114,13 +147,13 @@ function matchExtrinsicToAccounts(ext: GenericExtrinsic, accounts: ExtendedAccou
 	}
 }
 
-function methodFilter(method: string, sub: MethodSubscription): boolean {
+function subscriptionFilter(t: ISubscriptionTarget, sub: MethodSubscription): boolean {
 	if (Object.keys(sub).includes("only")) {
 		const only = (sub as Only).only;
-		return only.some((o) => o === method)
+		return only.some((o) => new SubscriptionTarget(o).match(t))
 	} else if (Object.keys(sub).includes("ignore")) {
 		const ignore = (sub as Ignore).ignore;
-		return !ignore.includes(method)
+		return !ignore.find((o) => new SubscriptionTarget(o).match(t))
 	} else {
 		logger.warn('no parsable value for "method_subscription", accepting method anyways.. use explicit "all".');
 		return true
@@ -131,7 +164,7 @@ async function perHeader(
 	chain: string,
 	api: ApiPromise,
 	header: Header,
-	accounts: ExtendedAccount[],
+	accounts: ConcreteAccount[],
 	reporters: Reporter[],
 	methodSub: MethodSubscription
 ) {
@@ -149,10 +182,11 @@ async function perHeader(
 		const matchOutcome = matchExtrinsicToAccounts(ext, accounts);
 		if (matchOutcome === true) {
 			// it is a wildcard.
-			const account: ExtendedAccount = { address: api.createType('Address', new Uint8Array(32)), nickname: "WILDCARD" }
-			const reportInput = { account, type, inner: ext };
-			const method = methodOf(reportInput);
-			if (methodFilter(method, methodSub)) {
+			const account: ExtendedAccount = "Wildcard";
+			const pallet = palletOf(type, ext);
+			const method = methodOf(type, ext);
+			const reportInput = { account, type, inner: ext, pallet, method };
+			if (subscriptionFilter({ pallet, method }, methodSub)) {
 				report.inputs.push(reportInput)
 			}
 		} else if (matchOutcome === false) {
@@ -160,9 +194,10 @@ async function perHeader(
 		} else {
 			// it matched with an account.
 			const matched = matchOutcome.with;
-			const reportInput = {account: matched, type, inner: ext };
-			const method = methodOf(reportInput);
-			if (methodFilter(method, methodSub)) {
+			const pallet = palletOf(type, ext);
+			const method = methodOf(type, ext);
+			const reportInput = {account: matched, type, inner: ext, method, pallet };
+			if (subscriptionFilter({ pallet, method }, methodSub)) {
 				report.inputs.push(reportInput)
 			}
 		}
@@ -173,10 +208,11 @@ async function perHeader(
 		const matchOutcome = matchEventToAccounts(event, accounts);
 		if (matchOutcome === true) {
 			// it is a wildcard.
-			const account: ExtendedAccount = { address: api.createType('Address', new Uint8Array(32)), nickname: "WILDCARD" }
-			const reportInput = { account, type, inner: event };
-			const method = methodOf(reportInput);
-			if (methodFilter(method, methodSub)) {
+			const account: ExtendedAccount = "Wildcard"
+			const pallet = palletOf(type, event);
+			const method = methodOf(type, event);
+			const reportInput = { account, type, inner: event, pallet, method };
+			if (subscriptionFilter({ pallet, method, }, methodSub)) {
 				report.inputs.push(reportInput)
 			}
 		} else if (matchOutcome === false) {
@@ -184,9 +220,10 @@ async function perHeader(
 		} else {
 			// it matched with an account.
 			const matched = matchOutcome.with;
-			const reportInput = {account: matched, type, inner: event };
-			const method = methodOf(reportInput);
-			if (methodFilter(method, methodSub)) {
+			const pallet = palletOf(type, event);
+			const method = methodOf(type, event);
+			const reportInput = {account: matched, type, inner: event, pallet, method };
+			if (subscriptionFilter({ pallet, method }, methodSub)) {
 				report.inputs.push(reportInput)
 			}
 		}
@@ -201,14 +238,14 @@ async function listenChain(ws: string, subscription: ApiSubscription, accounts: 
 	const provider = new WsProvider(ws);
 	const api = await ApiPromise.create({ provider });
 
-	const extendedAccounts: ExtendedAccount[] = accounts.map(([s, n]) => { return { address: api.createType('Address', s), nickname: n } });
+	const targetAccounts: ConcreteAccount[] = accounts.map(([s, n]) => { return { address: api.createType('Address', s), nickname: n } });
 	const chain = (await api.rpc.system.chain()).toString()
 	const subFn = subscription == ApiSubscription.Head ? api.rpc.chain.subscribeNewHeads: api.rpc.chain.subscribeFinalizedHeads;
 
 	logger.info(`⛓ Connected to [${ws}] ${chain} [ss58: ${api.registry.chainSS58}] [listening: ${subscription}]`)
 	const unsub = await subFn(async (header) => {
-		logger.debug(`checking block ${header.hash} of ${chain}`);
-		await perHeader(chain, api, header, extendedAccounts, reporters, methodSub)
+		logger.debug(`checking block ${header.number} ${header.hash} of ${chain}`);
+		await perHeader(chain, api, header, targetAccounts, reporters, methodSub)
 	});
 }
 
