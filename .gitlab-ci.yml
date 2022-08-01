@@ -18,7 +18,6 @@ variables:
   CI_IMAGE:                        node:16.10-alpine
   DOCKERHUB_REPO:                  "paritytech"
   IMAGE_NAME:                      docker.io/$DOCKERHUB_REPO/polkadot-basic-notification
-  DOCKER_TAG:                      "${CI_COMMIT_SHORT_SHA}"
   DOCKERFILE:                      Containerfile
 
 .common-refs:                      &common-refs
@@ -86,7 +85,7 @@ build-push-image:
     # version is either "master-<short_sha>" or tag
     - if [[ $CI_COMMIT_REF_NAME == "master" ]];
         then
-          export VERSION=main-${CI_COMMIT_SHORT_SHA};
+          export VERSION=$CI_COMMIT_REF_NAME-${CI_COMMIT_SHORT_SHA};
         else
           export VERSION=$CI_COMMIT_REF_NAME;
         fi
