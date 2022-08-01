@@ -1,13 +1,13 @@
 module.exports = {
-	apps : [
+	apps: [
 		{
-			name: "polkadot-basic-notifications",
-			script: "yarn run start -c config-dev.json",
+			name: 'polkadot-basic-notifications',
+			script: 'yarn run start -c config-dev.json',
 			autorestart: true,
 			watch: true,
 			env: {
-				"LOG_LEVEL": "info",
+				LOG_LEVEL: 'info'
 			}
 		}
 	]
-}
+};

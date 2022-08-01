@@ -1,0 +1,59 @@
+{
+	"accounts": [
+		["HL8bEp8YicBdrUmJocCAWVLKUaR2dd1y6jnD934pbre3un1", "ksm-stash"],
+		["EG4LPxwtrFfXvMg2ZBK2mcdCVcV7ByoLkkpveFcxNZ6LXnP", "ksm-ctrl"],
+
+		["15kiziiahbVjYstSquUFdmFmtK8YjR7s2NsYMrhJ14Bcp3Gz", "dot-ctrl-00"],
+		["125wW2374iA1mAK8hWZmXzBEpaaDj7BJULkT4GyR6u6a9u92", "dot-ctrl-01"],
+		["16iZfdma99cC9D5CAW8jN1Y9AQdZ65pGp6Tj2QaHNr8BmPZH", "dot-00"],
+		["15yVR7d4VPLMC1KM2GsHDScQo7QjSSwrGPjD6rixNaWARHL7", "dot-01"],
+		["1eTPAR2TuqLyidmPT9rMmuycHVm9s9czu78sePqg2KHMDrE", "dot-02"],
+		["15TCSsmcLMGBuBdrMRWttQJMSwrLaVnB8QpreN9wbVzdKFsp", "dot-hold"],
+		["155q5JBGSW1BhQmntD95mCXcbcjBFzni1HnudteHPuzyJGG8", "dot-parity"],
+
+		["0x8E9D48d936768237D6aD9378026bF4Bc7ECBC4bc", "ETH"],
+
+		["14TWYEiV8ggFe2p8UNCr994o2kodtPjGMgiVwXyRoVDy2rzG", "aleph-zero"]
+	],
+	"endpoints": [
+		"wss://rpc.polkadot.io",
+		"wss://westend-rpc.polkadot.io",
+		"wss://kusama-rpc.polkadot.io",
+		"wss://statemine-rpc.polkadot.io",
+
+		"wss://acala-polkadot.api.onfinality.io/public-ws",
+		"wss://karura-rpc-0.aca-api.network",
+
+		"wss://khala-api.phala.network/ws",
+
+		"wss://wss.api.moonbeam.network",
+		"wss://wss.moonriver.moonbeam.network",
+
+		"wss://rpc.astar.network",
+		"wss://rpc.parallel.fi",
+		"wss://ws.azero.dev"
+	],
+	"listen": "finalized",
+	"reporters": {
+		"email": {
+			"from": "polkadot-basic-notification@mailbox.org",
+			"to": ["notification@kizkiz.nl"],
+			"transporter": {
+				"host": "smtp.mailbox.org",
+				"port": 587,
+				"secure": false,
+				"auth": {
+					"user": "kianpaimani@mailbox.org",
+					"pass": "v/;g**(*1nY1Be3sRL3g"
+				}
+			}
+		},
+		"console": {},
+		"matrix": {
+			"userId": "@kianenigma-notifboy:matrix.org",
+			"accessToken": "syt_a2lhbmVuaWdtYS1ub3RpZmJveQ_srqMGfeuSIiATzRvxMku_2eJ9WH",
+			"roomId": "!ggiWRxQNogSKcQWUiu:matrix.parity.io",
+			"server": "https://matrix.org"
+		}
+	}
+}

@@ -1,0 +1,20 @@
+{
+	"accounts": [
+		{
+			"address": "5GBoBNFP9TA7nAk82i6SUZJimerbdhxaRgyC2PVcdYQMdb8e",
+			"nickname": "wnd-staking-miner"
+		}
+	],
+	"endpoints": ["wss://westend-rpc.polkadot.io"],
+	"api_subscription": "finalized",
+	"method_subscription": "all",
+	"reporters": {
+		"console": {},
+		"matrix": {
+			"userId": "@kianenigma-notifboy:matrix.org",
+			"accessToken": "syt_a2lhbmVuaWdtYS1ub3RpZmJveQ_srqMGfeuSIiATzRvxMku_2eJ9WH",
+			"roomId": "!sDhnyUOJSjkuvPUzgS:matrix.parity.io",
+			"server": "https://matrix.org"
+		}
+	}
+}

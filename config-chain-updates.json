@@ -1,0 +1,19 @@
+{
+	"accounts": [],
+	"method_subscription": { "only": ["CodeUpdated", "Remarked", "transfer_keep_alive"] },
+	"endpoints": [
+		"wss://rpc.polkadot.io",
+		"wss://westend-rpc.polkadot.io",
+		"wss://kusama-rpc.polkadot.io"
+	],
+	"subscription": "finalized",
+	"reporters": {
+		"console": {},
+		"matrix": {
+			"userId": "@kianenigma-notifboy:matrix.org",
+			"accessToken": "syt_a2lhbmVuaWdtYS1ub3RpZmJveQ_srqMGfeuSIiATzRvxMku_2eJ9WH",
+			"roomId": "!PNFQqIudaWYUzgmytD:matrix.parity.io",
+			"server": "https://matrix.org"
+		}
+	}
+}

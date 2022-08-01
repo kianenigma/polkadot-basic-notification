@@ -1,0 +1,28 @@
+{
+	"accounts": [],
+	"endpoints": ["wss://westend-rpc.polkadot.io"],
+	"method_subscription": { "only": ["transfer"] },
+	"listen": "head",
+	"reporters": {
+		"email": {
+			"from": "polkadot-basic-notification@mailbox.org",
+			"to": ["notification@kizkiz.nl"],
+			"transporter": {
+				"host": "smtp.mailbox.org",
+				"port": 587,
+				"secure": false,
+				"auth": {
+					"user": "kianpaimani@mailbox.org",
+					"pass": "v/;g**(*1nY1Be3sRL3g"
+				}
+			}
+		},
+		"console": {},
+		"matrix": {
+			"userId": "@kianenigma-notifboy:matrix.org",
+			"accessToken": "syt_a2lhbmVuaWdtYS1ub3RpZmJveQ_srqMGfeuSIiATzRvxMku_2eJ9WH",
+			"roomId": "!ggiWRxQNogSKcQWUiu:matrix.parity.io",
+			"server": "https://matrix.org"
+		}
+	}
+}
