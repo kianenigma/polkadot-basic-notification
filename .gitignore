@@ -4,6 +4,7 @@ key
 build
 .DS_Store
 config.json
+config-*.json
 *.log
 *.key
 *.ignore.json

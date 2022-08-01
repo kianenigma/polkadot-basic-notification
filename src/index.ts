@@ -16,28 +16,22 @@ import {
 	subscriptionFilter
 } from './matching';
 
-// TODO: make the accounts list in config be also a named object
+// TODO: full verification of all config fields.
+// TODO:
 
-class GenericNotification {
+class ChainNotification {
 	reporters: Reporter[];
+	accounts: ConcreteAccount[];
 	methodSubscription: MethodSubscription;
 	apiSubscription: ApiSubscription;
-	accounts: ConcreteAccount[];
-
-	constructor(reporters: Reporter[], config: AppConfig) {
-		this.reporters = reporters;
-		this.methodSubscription = config.method_subscription;
-		this.apiSubscription = config.api_subscription;
-		this.accounts = config.accounts;
-	}
-}
-
-class ChainNotification extends GenericNotification {
 	chain: string;
 	api: ApiPromise;
 
 	constructor(api: ApiPromise, chain: string, reporters: Reporter[], config: AppConfig) {
-		super(reporters, config);
+		this.reporters = reporters;
+		this.methodSubscription = config.method_subscription;
+		this.apiSubscription = config.api_subscription;
+		this.accounts = config.accounts;
 		this.api = api;
 		this.chain = chain;
 	}
@@ -158,7 +152,7 @@ async function listAllChains(config: AppConfig, reporters: Reporter[]) {
 		})
 	);
 	// a rather wacky way to make sure this function never returns.
-	return new Promise(() => {});
+	return new Promise(() => { });
 }
 
 async function main() {

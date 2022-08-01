@@ -11,8 +11,6 @@ import * as yaml from 'js-yaml';
 import yargs from 'yargs';
 import { ConcreteAccount, MethodSubscription } from './matching';
 
-// TODO: full verification of all config fields.
-
 const ENV_CONFIG = 'DOT_NOTIF_CONF';
 
 export const argv = yargs(process.argv.slice(2))
