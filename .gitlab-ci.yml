@@ -36,8 +36,6 @@ variables:
   rules:
     - if: $CI_COMMIT_REF_NAME == "master"                           # on commits to main branch
     - if: $CI_COMMIT_REF_NAME =~ /^v[0-9]+\.[0-9]+.*$/              # on tags (i.e. v1.0, v2.1rc1)
-    # REMOVEME
-    - if: $CI_COMMIT_REF_NAME =~ /^[0-9]+$/                         # PRs
 
 .kubernetes-env:                   &kubernetes-env
   image:                           $CI_IMAGE
