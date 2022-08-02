@@ -79,6 +79,8 @@ build-npm:
   <<:                              *common-refs
   <<:                              *kubernetes-env
   script:
+    - npm install
+    - npm ci --ignore-scripts
     - npm run build
     - mkdir -p artifacts
     - cp -r dist artifacts/
