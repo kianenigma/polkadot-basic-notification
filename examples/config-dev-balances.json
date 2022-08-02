@@ -1,0 +1,18 @@
+{
+	"accounts": [],
+	"endpoints": [
+		"wss://westend-rpc.polkadot.io"
+	],
+	"method_subscription": {
+		"only": [
+			{
+				"pallet": "balances",
+				"method": "*"
+			}
+		]
+	},
+	"listen": "head",
+	"reporters": {
+		"console": {}
+	}
+}

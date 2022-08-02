@@ -15,12 +15,12 @@ LABEL io.parity.image.authors="cicd-team@parity.io" \
     io.parity.image.revision="${VCS_REF}" \
     io.parity.image.created="${BUILD_DATE}"
 
+COPY artifacts/ /app/
+RUN chown node:node /app
+USER node
 WORKDIR /app/
 
-COPY package.json yarn.lock ./
-RUN yarn --frozen-lockfile
+EXPOSE 3000
 
-COPY . .
-
-ARG CONF
-CMD yarn run start -c $CONF
+VOLUME ["/config"]
+CMD ["node", "dist/index.js"]
