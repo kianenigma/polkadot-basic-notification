@@ -5,7 +5,6 @@ substrate-based chain, most specifically).
 
 ![Untitled(2)](https://user-images.githubusercontent.com/5588131/158027440-a819bad8-c28a-4662-9c5a-b2f850f6ee36.png)
 
-
 The underlying workings of this program is as follows: We have a list of accounts which we want to
 monitor, stored as ss58 string representation. The script then listens to incoming blocks of any
 given chain, and does a full-text search of the account strings in the `stringified` representation
@@ -121,7 +120,6 @@ A documented examples is as follows:
 ```
 
 You can mix and match different reporters with different configs together.
-
 
 ## Deployment
 
