@@ -79,7 +79,9 @@ build-npm:
   <<:                              *common-refs
   <<:                              *kubernetes-env
   script:
-    - npm install
+    - apk update && apk add --no-cache git
+    - npm ci --ignore-scripts
+    - ./node_modules/typescript/bin/tsc || echo ok
     - ./node_modules/typescript/bin/tsc -b
     - mkdir -p artifacts
     - cp -r build/ artifacts/
