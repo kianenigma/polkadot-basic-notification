@@ -80,10 +80,10 @@ build-npm:
   <<:                              *kubernetes-env
   script:
     - npm install
-    - npm ci --ignore-scripts
-    - npm run build
+    - ./node_modules/typescript/bin/tsc -b
     - mkdir -p artifacts
-    - cp -r dist artifacts/
+    - cp -r build/ artifacts/
+    - ls artifacts/
 
 build-docker-bot:
   stage:                           build

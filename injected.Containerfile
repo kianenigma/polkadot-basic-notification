@@ -23,4 +23,4 @@ WORKDIR /app/
 EXPOSE 3000
 
 VOLUME ["/config"]
-CMD ["node", "dist/index.js"]
+CMD ["node", "index.js"]
