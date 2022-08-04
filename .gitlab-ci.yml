@@ -81,8 +81,7 @@ build-npm:
   script:
     - apk update && apk add --no-cache git
     - npm ci --ignore-scripts
-    - ./node_modules/typescript/bin/tsc || echo ok
-    - ./node_modules/typescript/bin/tsc -b
+    - npm build
     - mkdir -p artifacts
     - cp -r build/ artifacts/
     - ls artifacts/
