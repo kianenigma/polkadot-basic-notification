@@ -71,14 +71,15 @@ export class GenericReporter {
 		return str.length < MAX_FORMATTED_MSG_LEN
 			? str
 			: `${str.substring(0, MAX_FORMATTED_MSG_LEN / 2)}..${str.substring(
-					str.length - MAX_FORMATTED_MSG_LEN / 2,
-					str.length
-			  )}`;
+				str.length - MAX_FORMATTED_MSG_LEN / 2,
+				str.length
+			)}`;
 	}
 
 	formatData(data: Codec): string {
 		const r = data.toRawType().toLowerCase();
 		if (r == 'u128' || r.toLowerCase() == 'balance') {
+			// @ts-ignore
 			return formatBalance(data);
 		} else {
 			return this.trimStr(data.toString());
@@ -120,23 +121,21 @@ export class GenericReporter {
 		rest.inputs = trimmedInputs;
 		return `
 <p>
-	<p>📣 <b> Notification</b> at ${this.chain()} #<a href='${this.subscan()}'>${
-			this.meta.number
-		}</a> aka ${new Date(this.meta.timestamp).toTimeString()}</p>
+	<p>📣 <b> Notification</b> at ${this.chain()} #<a href='${this.subscan()}'>${this.meta.number
+			}</a> aka ${new Date(this.meta.timestamp).toTimeString()}</p>
 	<ul>
 		${this.meta.inputs.map(
-			(i) => `
+				(i) => `
 		<li>
-			💻 type: ${i.type} | ${
-				i.account === 'Wildcard'
-					? ``
-					: `for <b style="background-color: ${COLOR.Primary}">${i.account.nickname}</b> (${i.account.address})`
-			}
+			💻 type: ${i.type} | ${i.account === 'Wildcard'
+						? ``
+						: `for <b style="background-color: ${COLOR.Primary}">${i.account.nickname}</b> (${i.account.address})`
+					}
 			pallet: <b style="background-color: ${COLOR.Primary}">${this.pallet(i)}</b> |
 			method: <b style="background-color: ${COLOR.Primary}">${this.method(i)}</b> |
 			data: ${this.data(i)}
 		</li>`
-		)}
+			)}
 	</ul>
 </p>
 <details>
@@ -149,8 +148,7 @@ export class GenericReporter {
 	rawTemplate(): string {
 		return `🎤 Events at #${this.meta.number}:  ${this.meta.inputs.map(
 			(i) =>
-				`[🧾 ${i.type} ${
-					i.account === 'Wildcard' ? '' : `for ${i.account.nickname}`
+				`[🧾 ${i.type} ${i.account === 'Wildcard' ? '' : `for ${i.account.nickname}`
 				} | 💻 pallet: ${this.pallet(i)} - method:${this.method(i)} | 💽 data: ${this.data(i)}]`
 		)} (${this.subscan()})`;
 	}
