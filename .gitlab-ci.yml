@@ -67,9 +67,8 @@ check-linting:
   <<:                              *common-refs
   <<:                              *kubernetes-env
   script:
-    - apk update && apk add --no-cache git
-    - yarn --immutable
-    - yarn lint
+    - npm ci --ignore-scripts
+    - npm run lint
   # TODO: currently fails, need fix
   allow_failure:                   True
 
@@ -79,7 +78,6 @@ build-npm:
   <<:                              *common-refs
   <<:                              *kubernetes-env
   script:
-    - apk update && apk add --no-cache git
     - npm ci --ignore-scripts
     - npm run build
     - mkdir -p artifacts
