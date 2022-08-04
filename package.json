@@ -5,6 +5,7 @@
 	"main": "index.js",
 	"scripts": {
 		"dev": "./node_modules/.bin/nodemon --exec ./node_modules/.bin/ts-node ./src/index.ts",
+		"build": "./node_modules/.bin/tsc --pretty",
 		"start": "./node_modules/.bin/ts-node ./src/index.ts",
 		"deploy:pm2": "./node_modules/.bin/pm2 start pm2.config.js",
 		"update": "./node_modules/.bin/ncu -u && yarn",

@@ -1,4 +1,4 @@
-import { GenericReporter, Reporter } from '.';
+import { GenericReporter, Report, Reporter } from '.';
 import { logger } from '../logger';
 
 export class ConsoleReporter implements Reporter {

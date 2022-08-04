@@ -1,10 +1,13 @@
 {
 	"compilerOptions": {
 		"target": "es6",
-		"module": "commonjs",
-		"lib": ["es6"],
-		"outDir": "build",
-
+		"module": "CommonJS",
+		"lib": [
+			"es6"
+		],
+		"moduleResolution": "node",
+		"allowJs": true,
+		"rootDir": "./src",
 		// Some compiling checks.
 		"strict": true,
 		"noImplicitAny": true,
@@ -12,7 +15,22 @@
 		"strictFunctionTypes": true,
 		"strictPropertyInitialization": true,
 		"noImplicitThis": true,
-		"alwaysStrict": true
+		"alwaysStrict": true,
+		// dep resolution
+		"allowSyntheticDefaultImports": true,
+		"esModuleInterop": true,
+		"experimentalDecorators": true,
+		"resolveJsonModule": false,
+		"declaration": false,
+		"emitDeclarationOnly": false,
+		"outDir": "build",
+		"declarationMap": false,
+		"skipLibCheck": true
 	},
-	"exclude": ["./pm2.config.js"]
+	"exclude": [
+		"**/*.test.ts",
+		"*.js",
+		"build",
+		"jest.config.js"
+	],
 }

@@ -24,7 +24,7 @@
 			}
 		]
 	},
-	"listen": "head",
+	"api_subscription": "head",
 	"reporters": {
 		"console": {}
 	}
