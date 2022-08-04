@@ -1,159 +1,177 @@
-import { Hash } from '@polkadot/types/interfaces/runtime';
+import '@polkadot/api-augment';
+import '@polkadot/types-augment';
+import { ApiPromise, WsProvider } from '@polkadot/api';
 import { GenericExtrinsic, GenericEvent } from '@polkadot/types/';
-import { Codec } from '@polkadot/types-codec/types';
-import { ExtendedAccount } from '../matching';
-import { formatBalance } from '@polkadot/util';
+import { Header } from '@polkadot/types/interfaces/runtime';
+import { logger } from './logger';
+import { methodOf, palletOf, Report, Reporter, ReportType } from './reporters';
+import { ApiSubscription, AppConfig, ConfigBuilder } from './config';
+import {
+	ConcreteAccount,
+	ExtendedAccount,
+	matchEventToAccounts,
+	matchExtrinsicToAccounts,
+	MatchOutcome,
+	MethodSubscription,
+	subscriptionFilter
+} from './matching';
 
-export { EmailReporter } from './email';
-export { FileSystemReporter } from './fs';
-export { MatrixReporter } from './matrix';
-export { ConsoleReporter } from './console';
+// TODO: full verification of all config fields.
+// TODO: Fix the hack of converting all account ids to 'Address' later (must have test that we catch
+// wrong ss58 accounts)
+// TODO: test case for all json files
 
-const MAX_FORMATTED_MSG_LEN = 256;
 
-enum COLOR {
-	Primary = '#a3e4d7'
-}
-
-export enum ReportType {
-	Event = 'Event',
-	Extrinsic = 'Extrinsic'
-}
-
-export interface ReportInput {
-	account: ExtendedAccount;
-	type: ReportType;
-	pallet: string;
-	method: string;
-	inner: GenericEvent | GenericExtrinsic;
-}
-
-export interface Report {
-	hash: Hash;
-	number: number;
+class ChainNotification {
+	reporters: Reporter[];
+	accounts: ConcreteAccount[];
+	methodSubscription: MethodSubscription;
+	apiSubscription: ApiSubscription;
 	chain: string;
-	timestamp: number;
-	inputs: ReportInput[];
-}
+	api: ApiPromise;
 
-/// Method of a transaction or an event, e.g. `transfer` or `Deposited`.
-export function methodOf(type: ReportType, input: GenericEvent | GenericExtrinsic): string {
-	if (type === ReportType.Event) {
-		return input.method.toString();
-	} else {
-		return (input as GenericExtrinsic).meta.name.toString();
-	}
-}
-
-/// Pallet of a transaction or an event, e.g. `Balances` or `System`.
-export function palletOf(type: ReportType, input: GenericEvent | GenericExtrinsic): string {
-	if (type === ReportType.Event) {
-		// TODO: there's probably a better way for this?
-		// @ts-ignore
-		return input.toHuman().section;
-	} else {
-		return (input as GenericExtrinsic).method.section.toString();
-	}
-}
-
-export interface Reporter {
-	report(report: Report): Promise<void>;
-}
-
-export class GenericReporter {
-	meta: Report;
-
-	constructor(meta: Report) {
-		this.meta = meta;
+	constructor(api: ApiPromise, chain: string, reporters: Reporter[], config: AppConfig) {
+		this.reporters = reporters;
+		this.methodSubscription = config.method_subscription;
+		this.apiSubscription = config.api_subscription;
+		this.accounts = config.accounts;
+		this.api = api;
+		this.chain = chain;
 	}
 
-	trimStr(str: string): string {
-		return str.length < MAX_FORMATTED_MSG_LEN
-			? str
-			: `${str.substring(0, MAX_FORMATTED_MSG_LEN / 2)}..${str.substring(
-				str.length - MAX_FORMATTED_MSG_LEN / 2,
-				str.length
-			)}`;
-	}
+	async start() {
+		const subFn =
+			this.apiSubscription == ApiSubscription.Head
+				? this.api.rpc.chain.subscribeNewHeads
+				: this.api.rpc.chain.subscribeFinalizedHeads;
 
-	formatData(data: Codec): string {
-		const r = data.toRawType().toLowerCase();
-		if (r == 'u128' || r.toLowerCase() == 'balance') {
-			// @ts-ignore
-			return formatBalance(data);
-		} else {
-			return this.trimStr(data.toString());
-		}
-	}
+		logger.info(`⛓ Starting listen to ${this.chain} [sub: ${this.apiSubscription}]`);
 
-	subscan(): string {
-		return `https://${this.meta.chain.toLowerCase()}.subscan.io/block/${this.meta.number}`;
-	}
+		let lastBlock: number | undefined = undefined;
+		const unsub = await subFn(async (header) => {
+			logger.debug(`checking block ${header.number} ${header.hash} of ${this.chain}`);
+			if (
+				lastBlock !== undefined &&
+				header.number.toNumber() != lastBlock + 1 &&
+				header.number.toNumber() > lastBlock
+			) {
+				const amountSkipped = header.number.toNumber() - 1 - lastBlock;
+				const listOfSkippedBlocks = Array.from(Array(amountSkipped).keys()).map(
+					(x) => x + 1 + (lastBlock || 0)
+				);
 
-	chain(): string {
-		return `<b style="background-color: ${COLOR.Primary}">${this.meta.chain}</b>`;
-	}
-
-	method(input: ReportInput): string {
-		return input.method;
-	}
-
-	pallet(input: ReportInput): string {
-		return input.pallet;
-	}
-
-	data(input: ReportInput): string {
-		if (input.type === ReportType.Event) {
-			return `[${(input.inner as GenericEvent).data.map((d) => this.formatData(d)).join(', ')}]`;
-		} else {
-			return `[${(input.inner as GenericExtrinsic).method.args
-				.map((d) => this.formatData(d))
-				.join(', ')}]`;
-		}
-	}
-
-	HTMLTemplate(): string {
-		const { inputs, ...rest } = this.meta;
-		const trimmedInputs = inputs.map(({ account, type, inner }) => {
-			return { account, type, inner: this.trimStr(inner.toString()) };
+				listOfSkippedBlocks.map(async (n) => {
+					const blockHash = await this.api.rpc.chain.getBlockHash(n);
+					const header: Header = await this.api.rpc.chain.getHeader(blockHash);
+					logger.warn(`catching up with a skipped block ${header.number}`);
+					await this.perHeader(header);
+				});
+			} else if (
+				lastBlock !== undefined &&
+				header.number.toNumber() != lastBlock + 1 &&
+				header.number.toNumber() <= lastBlock
+			) {
+				logger.error(`This makes no sense ${header.number}`);
+			}
+			await this.perHeader(header);
+			lastBlock = header.number.toNumber();
 		});
-		// @ts-ignore
-		rest.inputs = trimmedInputs;
-		return `
-<p>
-	<p>📣 <b> Notification</b> at ${this.chain()} #<a href='${this.subscan()}'>${this.meta.number
-			}</a> aka ${new Date(this.meta.timestamp).toTimeString()}</p>
-	<ul>
-		${this.meta.inputs.map(
-				(i) => `
-		<li>
-			💻 type: ${i.type} | ${i.account === 'Wildcard'
-						? ``
-						: `for <b style="background-color: ${COLOR.Primary}">${i.account.nickname}</b> (${i.account.address})`
-					}
-			pallet: <b style="background-color: ${COLOR.Primary}">${this.pallet(i)}</b> |
-			method: <b style="background-color: ${COLOR.Primary}">${this.method(i)}</b> |
-			data: ${this.data(i)}
-		</li>`
-			)}
-	</ul>
-</p>
-<details>
-	<summary>Raw details</summary>
-	<code>${JSON.stringify(rest)}</code>
-</details>
-`;
 	}
 
-	rawTemplate(): string {
-		return `🎤 Events at #${this.meta.number}:  ${this.meta.inputs.map(
-			(i) =>
-				`[🧾 ${i.type} ${i.account === 'Wildcard' ? '' : `for ${i.account.nickname}`
-				} | 💻 pallet: ${this.pallet(i)} - method:${this.method(i)} | 💽 data: ${this.data(i)}]`
-		)} (${this.subscan()})`;
-	}
+	async perHeader(header: Header) {
+		const chain = this.chain;
+		const accounts = this.accounts;
+		const signedBlock = await this.api.rpc.chain.getBlock(header.hash);
+		const extrinsics = signedBlock.block.extrinsics;
+		const blockApi = await this.api.at(header.hash);
+		const events = await blockApi.query.system.events();
+		const number = header.number.toNumber();
+		const hash = header.hash;
+		const timestamp = (await blockApi.query.timestamp.now()).toBn().toNumber();
 
-	jsonTemplate(): string {
-		return JSON.stringify(this.meta);
+		const report: Report = { hash, chain, number, timestamp, inputs: [] };
+
+		const processMatchOutcome = (
+			type: ReportType,
+			inner: GenericExtrinsic | GenericEvent,
+			outcome: MatchOutcome
+		) => {
+			if (outcome === true) {
+				// it is a wildcard.
+				const account: ExtendedAccount = 'Wildcard';
+				const pallet = palletOf(type, inner);
+				const method = methodOf(type, inner);
+				const reportInput = { account, type, inner, pallet, method };
+				if (subscriptionFilter({ pallet, method }, this.methodSubscription)) {
+					report.inputs.push(reportInput);
+				}
+			} else if (outcome === false) {
+				// it did not match.
+			} else {
+				// it matched with an account.
+				const matched = outcome.with;
+				const pallet = palletOf(type, inner);
+				const method = methodOf(type, inner);
+				const reportInput = { account: matched, type, inner, method, pallet };
+				if (subscriptionFilter({ pallet, method }, this.methodSubscription)) {
+					report.inputs.push(reportInput);
+				}
+			}
+		};
+
+		// check all extrinsics.
+		for (const ext of extrinsics) {
+			const type = ReportType.Extrinsic;
+			const matchOutcome = matchExtrinsicToAccounts(ext, accounts);
+			processMatchOutcome(type, ext, matchOutcome);
+		}
+
+		// check events.
+		for (const event of events.map((e) => e.event)) {
+			const type = ReportType.Event;
+			const matchOutcome = matchEventToAccounts(event, accounts);
+			processMatchOutcome(type, event, matchOutcome);
+		}
+
+		// if events or extrinsics have matched, trigger a report.
+		if (report.inputs.length) {
+			await Promise.all(this.reporters.map((r) => r.report(report)));
+		}
 	}
 }
+
+async function listAllChains(config: AppConfig, reporters: Reporter[]) {
+	const _ = await Promise.all(
+		config.endpoints.map(async (e) => {
+			const provider = new WsProvider(e);
+			const api = await ApiPromise.create({ provider });
+			const chain = (await api.rpc.system.chain()).toString();
+			// NOTE: bit of a hack, we must convert all addresses to a legit address type after we
+			// have build the API.
+			config.accounts = config.accounts.map(({ address, nickname }) => {
+				return { nickname, address: api.createType('Address', address) };
+			});
+			new ChainNotification(api, chain, reporters, config).start();
+		})
+	);
+	// a rather wacky way to make sure this function never returns.
+	return new Promise(() => { });
+}
+
+async function main() {
+	const { config, reporters } = new ConfigBuilder();
+
+	const retry = true;
+	while (retry) {
+		try {
+			await listAllChains(config, reporters);
+			// this is just to make sure we NEVER reach this code. The above function never returns,
+			// unless if we trap in an exception.
+			process.exit(1);
+		} catch (e) {
+			logger.error(`retrying due to error: ${e}`);
+		}
+	}
+}
+
+main().catch(console.error);
