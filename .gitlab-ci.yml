@@ -81,7 +81,7 @@ build-npm:
   script:
     - apk update && apk add --no-cache git
     - npm ci --ignore-scripts
-    - npm build
+    - npm run build
     - mkdir -p artifacts
     - cp -r build/ artifacts/
     - ls artifacts/
