@@ -84,7 +84,7 @@ build-npm:
     - cp -r build/ artifacts/
     - ls artifacts/
 
-build-docker-bot:
+build-docker:
   stage:                           build
   needs:
     - job:                         build-npm
