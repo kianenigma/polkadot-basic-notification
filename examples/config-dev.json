@@ -1,0 +1,15 @@
+{
+	"accounts": [],
+	"endpoints": [
+		"wss://westend-rpc.polkadot.io"
+	],
+	"method_subscription": {
+		"only": [
+			"transfer"
+		]
+	},
+	"api_subscription": "head",
+	"reporters": {
+		"console": {}
+	}
+}

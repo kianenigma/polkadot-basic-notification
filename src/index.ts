@@ -1,303 +1,165 @@
-import { ApiPromise, WsProvider } from "@polkadot/api";
-import { Header, Address } from "@polkadot/types/interfaces/runtime";
-import "@polkadot/api-augment";
-import "@polkadot/types-augment";
-import { readFileSync } from 'fs';
-import { logger } from "./logger";
-import { ConsoleReporter, EmailReporter, FileSystemReporter, MatrixReporter, methodOf, palletOf, Report, Reporter } from "./reporters"
-import yargs from "yargs";
-import { GenericEvent, GenericExtrinsic } from "@polkadot/types";
+import '@polkadot/api-augment';
+import '@polkadot/types-augment';
+import { ApiPromise, WsProvider } from '@polkadot/api';
+import { GenericExtrinsic, GenericEvent } from '@polkadot/types/';
+import { Header } from '@polkadot/types/interfaces/runtime';
+import { logger } from './logger';
+import { methodOf, palletOf, Report, Reporter, ReportType } from './reporters';
+import { ApiSubscription, AppConfig, ConfigBuilder } from './config';
+import {
+	ConcreteAccount,
+	ExtendedAccount,
+	matchEventToAccounts,
+	matchExtrinsicToAccounts,
+	MatchOutcome,
+	MethodSubscription,
+	subscriptionFilter
+} from './matching';
 
-// TODO: make the accounts list in config be also a named object
-// TODO: move types to a separate file
-// TODO: check skipped finalized blocks.
+// TODO: full verification of all config fields.
+// TODO: Fix the hack of converting all account ids to 'Address' later (must have test that we catch
+// wrong ss58 accounts)
+// TODO: test case for all json files
 
-const argv = yargs(process.argv.slice(2))
-	.option('c', {
-		type: 'string',
-		description: 'path to a JSON file with your config in it.',
-		default: process.env.DOT_NOTIF_CONF,
-	}).parseSync()
 
-export enum ReportType {
-	Event = "Event",
-	Extrinsic = "Extrinsic",
-}
+class ChainNotification {
+	reporters: Reporter[];
+	accounts: ConcreteAccount[];
+	methodSubscription: MethodSubscription;
+	apiSubscription: ApiSubscription;
+	chain: string;
+	api: ApiPromise;
 
-export interface ConcreteAccount {
-	address: Address,
-	nickname: string
-}
-
-export type ExtendedAccount = ConcreteAccount | "Wildcard";
-
-export interface EmailConfig {
-	from: string,
-	to: string[],
-	gpgpubkey?: string,
-	transporter: any
-}
-
-export interface MatrixConfig {
-	userId: string,
-	accessToken: string,
-	roomId: string,
-	server: string,
-}
-
-export interface FsConfig {
-	path: string,
-}
-
-interface ReportersConfig {
-	email?: EmailConfig,
-	matrix?: MatrixConfig,
-	fs?: FsConfig,
-	console?: any,
-}
-
-enum ApiSubscription {
-	Head = "head",
-	Finalized = "finalized",
-}
-
-// my best effort at creating rust-style enums, as per explained here: https://www.jmcelwa.in/posts/rust-like-enums/
-interface Only {
-	only: ISubscriptionTarget[],
-}
-interface Ignore {
-	ignore: ISubscriptionTarget[]
-}
-type MethodSubscription = "all" | Only | Ignore;
-
-interface ISubscriptionTarget {
-	pallet: string,
-	method: string,
-}
-
-class SubscriptionTarget implements ISubscriptionTarget {
-	pallet: string;
-	method: string;
-
-	constructor(i: ISubscriptionTarget) {
-		this.pallet = i.pallet;
-		this.method = i.method
+	constructor(api: ApiPromise, chain: string, reporters: Reporter[], config: AppConfig) {
+		this.reporters = reporters;
+		this.methodSubscription = config.method_subscription;
+		this.apiSubscription = config.api_subscription;
+		this.accounts = config.accounts;
+		this.api = api;
+		this.chain = chain;
 	}
 
-	matchPallet(pallet: string): boolean {
-		return this.pallet === "*" || this.pallet === pallet
+	async start() {
+		const subFn =
+			this.apiSubscription == ApiSubscription.Head
+				? this.api.rpc.chain.subscribeNewHeads
+				: this.api.rpc.chain.subscribeFinalizedHeads;
+
+		logger.info(`⛓ Starting listen to ${this.chain} [sub: ${this.apiSubscription}]`);
+
+		let lastBlock: number | undefined = undefined;
+		const unsub = await subFn(async (header) => {
+			logger.debug(`checking block ${header.number} ${header.hash} of ${this.chain}`);
+			if (
+				lastBlock !== undefined &&
+				header.number.toNumber() != lastBlock + 1 &&
+				header.number.toNumber() > lastBlock
+			) {
+				const amountSkipped = header.number.toNumber() - 1 - lastBlock;
+				const listOfSkippedBlocks = Array.from(Array(amountSkipped).keys()).map(
+					(x) => x + 1 + (lastBlock || 0)
+				);
+
+				listOfSkippedBlocks.map(async (n) => {
+					const blockHash = await this.api.rpc.chain.getBlockHash(n);
+					const header: Header = await this.api.rpc.chain.getHeader(blockHash);
+					logger.warn(`catching up with a skipped block ${header.number}`);
+					await this.perHeader(header);
+				});
+			} else if (
+				lastBlock !== undefined &&
+				header.number.toNumber() != lastBlock + 1 &&
+				header.number.toNumber() <= lastBlock
+			) {
+				logger.error(`This makes no sense ${header.number}`);
+			}
+			await this.perHeader(header);
+			lastBlock = header.number.toNumber();
+		});
 	}
 
-	matchMethod(method: string): boolean {
-		return  this.method === "*" || this.method === method
-	}
+	async perHeader(header: Header) {
+		const chain = this.chain;
+		const accounts = this.accounts;
+		const signedBlock = await this.api.rpc.chain.getBlock(header.hash);
+		const extrinsics = signedBlock.block.extrinsics;
+		const blockApi = await this.api.at(header.hash);
+		const events = await blockApi.query.system.events();
+		const number = header.number.toNumber();
+		const hash = header.hash;
+		const timestamp = (await blockApi.query.timestamp.now()).toBn().toNumber();
 
-	match(t: ISubscriptionTarget): boolean {
-		return this.matchPallet(t.pallet) &&	this.matchMethod(t.method)
-	}
-}
+		const report: Report = { hash, chain, number, timestamp, inputs: [] };
 
-interface AppConfig {
-	accounts: [string, string][],
-	endpoints: string[],
-	method_subscription: MethodSubscription,
-	listen?: any,
-	reporters: ReportersConfig,
-}
+		const processMatchOutcome = (
+			type: ReportType,
+			inner: GenericExtrinsic | GenericEvent,
+			outcome: MatchOutcome
+		) => {
+			if (outcome === true) {
+				// it is a wildcard.
+				const account: ExtendedAccount = 'Wildcard';
+				const pallet = palletOf(type, inner);
+				const method = methodOf(type, inner);
+				const reportInput = { account, type, inner, pallet, method };
+				if (subscriptionFilter({ pallet, method }, this.methodSubscription)) {
+					report.inputs.push(reportInput);
+				}
+			} else if (outcome === false) {
+				// it did not match.
+			} else {
+				// it matched with an account.
+				const matched = outcome.with;
+				const pallet = palletOf(type, inner);
+				const method = methodOf(type, inner);
+				const reportInput = { account: matched, type, inner, method, pallet };
+				if (subscriptionFilter({ pallet, method }, this.methodSubscription)) {
+					report.inputs.push(reportInput);
+				}
+			}
+		};
 
-function missingAppConfig(arg: any): string {
-	if (!arg.accounts) return "accounts";
-	if (!arg.endpoints) return "endpoints";
-	if (!arg.method_subscription) return "method_subscription";
-	if (!arg.reporters) return "reporters";
-	return ""
-}
+		// check all extrinsics.
+		for (const ext of extrinsics) {
+			const type = ReportType.Extrinsic;
+			const matchOutcome = matchExtrinsicToAccounts(ext, accounts);
+			processMatchOutcome(type, ext, matchOutcome);
+		}
 
-interface Matched {
-	with: ExtendedAccount
-}
+		// check events.
+		for (const event of events.map((e) => e.event)) {
+			const type = ReportType.Event;
+			const matchOutcome = matchEventToAccounts(event, accounts);
+			processMatchOutcome(type, event, matchOutcome);
+		}
 
-type MatchOutcome = false | Matched | true;
-
-function matchEventToAccounts(event: GenericEvent, accounts: ConcreteAccount[]): MatchOutcome {
-	if (accounts.length == 0) {
-		return true
-	} else {
-		const maybeMatch = accounts.find((e) => event.data.toString().includes(e.address.toString()));
-		if (maybeMatch) {
-			return { with: maybeMatch }
-		} else {
-			return false
+		// if events or extrinsics have matched, trigger a report.
+		if (report.inputs.length) {
+			await Promise.all(this.reporters.map((r) => r.report(report)));
 		}
 	}
-}
-
-function matchExtrinsicToAccounts(ext: GenericExtrinsic, accounts: ConcreteAccount[]): MatchOutcome {
-	if (accounts.length == 0) {
-		return true
-	} else {
-		const maybeMatch =
-			accounts.find((e) => e.address.eq(ext.signer)) ||
-			accounts.find((e) => ext.toString().includes(e.address.toString()));
-		if (maybeMatch) {
-			return { with: maybeMatch }
-		} else {
-			return false
-		}
-	}
-}
-
-function subscriptionFilter(t: ISubscriptionTarget, sub: MethodSubscription): boolean {
-	if (Object.keys(sub).includes("only")) {
-		const only = (sub as Only).only;
-		return only.some((o) => new SubscriptionTarget(o).match(t))
-	} else if (Object.keys(sub).includes("ignore")) {
-		const ignore = (sub as Ignore).ignore;
-		return !ignore.find((o) => new SubscriptionTarget(o).match(t))
-	} else {
-		logger.warn('no parsable value for "method_subscription", accepting method anyways.. use explicit "all".');
-		return true
-	}
-}
-
-async function perHeader(
-	chain: string,
-	api: ApiPromise,
-	header: Header,
-	accounts: ConcreteAccount[],
-	reporters: Reporter[],
-	methodSub: MethodSubscription
-) {
-	const signedBlock = await api.rpc.chain.getBlock(header.hash);
-	const extrinsics = signedBlock.block.extrinsics;
-	const blockApi = await api.at(header.hash);
-	const events = await blockApi.query.system.events();
-	const number = header.number.toNumber();
-	const hash = header.hash;
-	const timestamp = (await blockApi.query.timestamp.now()).toBn().toNumber()
-
-	const report: Report = { api, hash, chain, number, timestamp, inputs: [] }
-	for (const ext of extrinsics) {
-		const type = ReportType.Extrinsic;
-		const matchOutcome = matchExtrinsicToAccounts(ext, accounts);
-		if (matchOutcome === true) {
-			// it is a wildcard.
-			const account: ExtendedAccount = "Wildcard";
-			const pallet = palletOf(type, ext);
-			const method = methodOf(type, ext);
-			const reportInput = { account, type, inner: ext, pallet, method };
-			if (subscriptionFilter({ pallet, method }, methodSub)) {
-				report.inputs.push(reportInput)
-			}
-		} else if (matchOutcome === false) {
-			// it did not match.
-		} else {
-			// it matched with an account.
-			const matched = matchOutcome.with;
-			const pallet = palletOf(type, ext);
-			const method = methodOf(type, ext);
-			const reportInput = {account: matched, type, inner: ext, method, pallet };
-			if (subscriptionFilter({ pallet, method }, methodSub)) {
-				report.inputs.push(reportInput)
-			}
-		}
-	}
-
-	for (const event of events.map(e => e.event)) {
-		const type = ReportType.Event;
-		const matchOutcome = matchEventToAccounts(event, accounts);
-		if (matchOutcome === true) {
-			// it is a wildcard.
-			const account: ExtendedAccount = "Wildcard"
-			const pallet = palletOf(type, event);
-			const method = methodOf(type, event);
-			const reportInput = { account, type, inner: event, pallet, method };
-			if (subscriptionFilter({ pallet, method, }, methodSub)) {
-				report.inputs.push(reportInput)
-			}
-		} else if (matchOutcome === false) {
-			// it did not match.
-		} else {
-			// it matched with an account.
-			const matched = matchOutcome.with;
-			const pallet = palletOf(type, event);
-			const method = methodOf(type, event);
-			const reportInput = {account: matched, type, inner: event, pallet, method };
-			if (subscriptionFilter({ pallet, method }, methodSub)) {
-				report.inputs.push(reportInput)
-			}
-		}
-	}
-
-	if (report.inputs.length) {
-		await Promise.all(reporters.map((r) => r.report(report)))
-	}
-}
-
-async function listenChain(ws: string, subscription: ApiSubscription, accounts: [string, string][], methodSub: MethodSubscription, reporters: Reporter[]): Promise<void> {
-	const provider = new WsProvider(ws);
-	const api = await ApiPromise.create({ provider });
-
-	const targetAccounts: ConcreteAccount[] = accounts.map(([s, n]) => { return { address: api.createType('Address', s), nickname: n } });
-	const chain = (await api.rpc.system.chain()).toString()
-	const subFn = subscription == ApiSubscription.Head ? api.rpc.chain.subscribeNewHeads: api.rpc.chain.subscribeFinalizedHeads;
-
-	logger.info(`⛓ Connected to [${ws}] ${chain} [ss58: ${api.registry.chainSS58}] [listening: ${subscription}]`)
-	const unsub = await subFn(async (header) => {
-		logger.debug(`checking block ${header.number} ${header.hash} of ${chain}`);
-		await perHeader(chain, api, header, targetAccounts, reporters, methodSub)
-	});
 }
 
 async function listAllChains(config: AppConfig, reporters: Reporter[]) {
-	const _ = await Promise.all(config.endpoints.map((e) => listenChain(e, config.listen, config.accounts, config.method_subscription, reporters)));
+	const _ = await Promise.all(
+		config.endpoints.map(async (e) => {
+			const provider = new WsProvider(e);
+			const api = await ApiPromise.create({ provider });
+			const chain = (await api.rpc.system.chain()).toString();
+			// NOTE: bit of a hack, we must convert all addresses to a legit address type after we
+			// have build the API.
+			config.accounts = config.accounts.map(({ address, nickname }) => {
+				return { nickname, address: api.createType('Address', address) };
+			});
+			new ChainNotification(api, chain, reporters, config).start();
+		})
+	);
 	// a rather wacky way to make sure this function never returns.
-	return new Promise(() => {});
+	return new Promise(() => { });
 }
 
 async function main() {
-	if (!argv.c) {
-		logger.error('-c or DOT_NOTIF_CONF env variable must specify a config file');
-		process.exit(1);
-	}
-
-	const config: AppConfig = JSON.parse(readFileSync(argv.c).toString());
-	const missingField = missingAppConfig(config);
-	if (missingField) {
-		logger.error(`missing some key in config file: ${missingField}`);
-		process.exit(1);
-	}
-
-	if (config.listen !== ApiSubscription.Finalized && config.listen !== ApiSubscription.Head) {
-		logger.warn(`"listen" config not provided or invalid (${config.listen}), overwriting to ${ApiSubscription.Finalized}`);
-		config.listen = ApiSubscription.Finalized;
-	}
-
-	const reporters: Reporter[] = [];
-	for (const reporterType in config.reporters) {
-		if (reporterType === "email") {
-			const reporter = new EmailReporter(config.reporters[reporterType] as EmailConfig);
-			await reporter.verify();
-			reporters.push(reporter)
-		}
-		if (reporterType === "console") {
-			reporters.push(new ConsoleReporter())
-		}
-		if (reporterType === "fs") {
-			reporters.push(new FileSystemReporter(config.reporters[reporterType] as FsConfig))
-		}
-		if (reporterType === "matrix") {
-			const reporter = new MatrixReporter(config.reporters[reporterType] as MatrixConfig);
-			reporters.push(reporter)
-		}
-	}
-
-	if (config.accounts.length) {
-		config.accounts.forEach(([address, nick]) => logger.info(`📇 registering address ${address} aka ${nick}.`))
-	} else {
-		logger.info(`⚠️ no list of accounts provided, this will match with anything.`);
-	}
-	logger.info(`👂 method subscription: ${JSON.stringify(config.method_subscription)}`);
+	const { config, reporters } = new ConfigBuilder();
 
 	const retry = true;
 	while (retry) {
@@ -307,9 +169,8 @@ async function main() {
 			// unless if we trap in an exception.
 			process.exit(1);
 		} catch (e) {
-			logger.error(`retrying due to error: ${e}`)
+			logger.error(`retrying due to error: ${e}`);
 		}
-
 	}
 }
 

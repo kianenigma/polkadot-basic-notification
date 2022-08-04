@@ -1,10 +1,10 @@
 {
 	"accounts": [],
-	"endpoints":[
+	"endpoints": [
 		"wss://westend-rpc.polkadot.io"
 	],
 	"method_subscription": "all",
-	"listen": "head",
+	"api_subscription": "head",
 	"reporters": {
 		"console": {}
 	}
