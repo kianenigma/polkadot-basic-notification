@@ -1,7 +1,7 @@
 # Polkadot Basic Notifications 🔴 📣
 
-A dead-simple, yet highly effective notification system for Polkadot and its parachains (or, any
-substrate-based chain, most specifically).
+A *dead-simple*, yet *highly **effective*** notification system for Polkadot and its parachains (or,
+any substrate-based chain).
 
 ![Untitled(2)](https://user-images.githubusercontent.com/5588131/158027440-a819bad8-c28a-4662-9c5a-b2f850f6ee36.png)
 
@@ -15,13 +15,12 @@ You need to provide one configuration file to the program, which specifies:
 3. which methods (event, transactions) you want to monitor.
 4. which reporters you want to use.
 
-See [Examples](./examples/) folder, or the following:
+These configurations can be provided either as JSON or YAML. See [Examples](./examples/) folder, or the following:
 
 ```javascript
 {
-	// your list of accounts. It should be ["<ss58_address>", "<account_nickname>"]
-	// ["<ss58_address>", "<account_nickname>"]. For chains that use ethereum based accounts (e.g.
-	// moonbeam), just use your account's public key as hex (`0xabc..`).
+	// your list of accounts. For chains that use ethereum based accounts (e.g. moonbeam),
+	// just use your account's public key as hex (`0xabc..`).
 	//
 	// If the list is empty, then no account filter is applied. This means that all events and
 	// transactions will match.
