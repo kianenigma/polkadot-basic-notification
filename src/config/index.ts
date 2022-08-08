@@ -1,4 +1,4 @@
-import { logger } from './logger';
+import { logger } from '../logger';
 import { readFileSync } from 'fs';
 import {
 	ConsoleReporter,
@@ -6,10 +6,10 @@ import {
 	FileSystemReporter,
 	MatrixReporter,
 	Reporter
-} from './reporters';
+} from '../reporters';
 import * as yaml from 'js-yaml';
 import yargs from 'yargs';
-import { ConcreteAccount, MethodSubscription } from './matching';
+import { ConcreteAccount, MethodSubscription } from '../matching';
 
 const ENV_CONFIG = 'DOT_NOTIF_CONF';
 
@@ -43,7 +43,7 @@ export interface ReportersConfig {
 	email?: EmailConfig;
 	matrix?: MatrixConfig;
 	fs?: FsConfig;
-	console?: any;
+	console?: unknown;
 }
 
 export enum ApiSubscription {
@@ -74,8 +74,8 @@ export class ConfigBuilder {
 			process.exit(1);
 		}
 
-		const anyConfig = yaml.load(readFileSync(argv.c, 'utf8'));
-		const config = this.verifyConfig(anyConfig);
+		const anyConfig = ConfigBuilder.loadConfig(argv.c);
+		const config = ConfigBuilder.verifyConfig(anyConfig);
 
 		if (config.reporters.matrix !== undefined) {
 			try {
@@ -121,7 +121,11 @@ export class ConfigBuilder {
 		this.reporters = reporters;
 	}
 
-	verifyConfig(config: any): AppConfig {
+	static loadConfig(path: string): unknown {
+		return yaml.load(readFileSync(path, 'utf8'))
+	}
+
+	static verifyConfig(config: any): AppConfig {
 		const missing = (f: string) => {
 			logger.error(`aborting due to missing config field ${f}`);
 			process.exit(1);
