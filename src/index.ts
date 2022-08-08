@@ -19,6 +19,8 @@ import {
 // TODO: full verification of all config fields.
 // TODO: Fix the hack of converting all account ids to 'Address' later (must have test that we catch
 // wrong ss58 accounts)
+// TODO: send a restart event optionally.
+// TODO: Aleph-zero finality is a good test-case.
 
 
 class ChainNotification {
