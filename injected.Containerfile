@@ -15,12 +15,16 @@ LABEL io.parity.image.authors="cicd-team@parity.io" \
     io.parity.image.revision="${VCS_REF}" \
     io.parity.image.created="${BUILD_DATE}"
 
-COPY artifacts/ /app/
+WORKDIR /app/
+COPY package*.json artifacts/ /app/
+
+ENV NODE_ENV=production
+RUN npm install --ci --ignore-scripts
+
 RUN chown node:node /app
 USER node
-WORKDIR /app/
 
 EXPOSE 3000
 
 VOLUME ["/config"]
-CMD ["node", "index.js"]
+CMD ["node", "build/index.js"]
