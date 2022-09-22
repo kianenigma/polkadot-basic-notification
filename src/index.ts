@@ -16,10 +16,6 @@ import {
 	subscriptionFilter
 } from './matching';
 
-// TODO: full verification of all config fields.
-// TODO: Aleph-zero finality is a good test-case.
-
-
 /// The notification class for a single chain.
 class ChainNotification {
 	reporters: Reporter[];

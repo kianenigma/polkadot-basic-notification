@@ -1,4 +1,4 @@
-import { logger } from '../logger';
+import { logger } from './logger';
 import { readFileSync } from 'fs';
 import {
 	ConsoleReporter,
@@ -6,10 +6,10 @@ import {
 	FileSystemReporter,
 	MatrixReporter,
 	Reporter
-} from '../reporters';
+} from './reporters';
 import * as yaml from 'js-yaml';
 import yargs from 'yargs';
-import { ConcreteAccount, MethodSubscription } from '../matching';
+import { ConcreteAccount, MethodSubscription } from './matching';
 import { isAddress } from '@polkadot/util-crypto';
 
 const ENV_CONFIG = 'DOT_NOTIF_CONF';
