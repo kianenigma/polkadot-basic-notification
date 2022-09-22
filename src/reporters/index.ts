@@ -15,20 +15,26 @@ enum COLOR {
 	Primary = '#a3e4d7'
 }
 
-export enum ReportType {
+export enum NotificationReportType {
 	Event = 'Event',
 	Extrinsic = 'Extrinsic'
 }
 
 export interface ReportInput {
 	account: ExtendedAccount;
-	type: ReportType;
+	type: NotificationReportType;
 	pallet: string;
 	method: string;
 	inner: GenericEvent | GenericExtrinsic;
 }
 
-export interface Report {
+export interface StartupReport {
+	_type: "status";
+	time: Date,
+}
+
+export interface NotificationReport {
+	_type: "notification";
 	hash: Hash;
 	number: number;
 	chain: string;
@@ -36,9 +42,11 @@ export interface Report {
 	inputs: ReportInput[];
 }
 
+export type Report = NotificationReport | StartupReport;
+
 /// Method of a transaction or an event, e.g. `transfer` or `Deposited`.
-export function methodOf(type: ReportType, input: GenericEvent | GenericExtrinsic): string {
-	if (type === ReportType.Event) {
+export function methodOf(type: NotificationReportType, input: GenericEvent | GenericExtrinsic): string {
+	if (type === NotificationReportType.Event) {
 		return input.method.toString();
 	} else {
 		return (input as GenericExtrinsic).meta.name.toString();
@@ -46,8 +54,8 @@ export function methodOf(type: ReportType, input: GenericEvent | GenericExtrinsi
 }
 
 /// Pallet of a transaction or an event, e.g. `Balances` or `System`.
-export function palletOf(type: ReportType, input: GenericEvent | GenericExtrinsic): string {
-	if (type === ReportType.Event) {
+export function palletOf(type: NotificationReportType, input: GenericEvent | GenericExtrinsic): string {
+	if (type === NotificationReportType.Event) {
 		// TODO: there's probably a better way for this?
 		// @ts-ignore
 		return input.toHuman().section;
@@ -60,10 +68,59 @@ export interface Reporter {
 	report(report: Report): Promise<void>;
 }
 
-export class GenericReporter {
-	meta: Report;
+
+interface ReporterHelper {
+	htmlTemplate(): string;
+	rawTemplate(): string;
+	jsonTemplate(): string;
+}
+
+
+export class GenericReporter implements ReporterHelper {
+	innerHelper: StartupReporterHelper | NotificationReporterHelper;
 
 	constructor(meta: Report) {
+		switch (meta._type) {
+			case 'notification':
+				this.innerHelper = new NotificationReporterHelper(meta as NotificationReport);
+				break;
+			case 'status':
+				this.innerHelper = new StartupReporterHelper(meta as StartupReport);
+		}
+	}
+
+	htmlTemplate(): string {
+		return this.innerHelper.htmlTemplate()
+	}
+	rawTemplate(): string {
+		return this.innerHelper.rawTemplate()
+	}
+	jsonTemplate(): string {
+		return this.innerHelper.jsonTemplate()
+	}
+}
+
+class StartupReporterHelper implements ReporterHelper {
+	meta: StartupReport;
+	constructor(meta: StartupReport) {
+		this.meta = meta;
+	}
+
+	htmlTemplate(): string {
+		return `<p>${this.rawTemplate()}</p>`
+	}
+	rawTemplate(): string {
+		return `Program (re)started at ${this.meta.time.toDateString()}`
+	}
+	jsonTemplate(): string {
+		return JSON.stringify(this.meta)
+	}
+}
+
+class NotificationReporterHelper implements ReporterHelper {
+	meta: NotificationReport;
+
+	constructor(meta: NotificationReport) {
 		this.meta = meta;
 	}
 
@@ -103,7 +160,7 @@ export class GenericReporter {
 	}
 
 	data(input: ReportInput): string {
-		if (input.type === ReportType.Event) {
+		if (input.type === NotificationReportType.Event) {
 			return `[${(input.inner as GenericEvent).data.map((d) => this.formatData(d)).join(', ')}]`;
 		} else {
 			return `[${(input.inner as GenericExtrinsic).method.args
@@ -112,7 +169,7 @@ export class GenericReporter {
 		}
 	}
 
-	HTMLTemplate(): string {
+	htmlTemplate(): string {
 		const { inputs, ...rest } = this.meta;
 		const trimmedInputs = inputs.map(({ account, type, inner }) => {
 			return { account, type, inner: this.trimStr(inner.toString()) };
@@ -131,10 +188,10 @@ export class GenericReporter {
 						? ``
 						: `for <b style="background-color: ${COLOR.Primary}">${i.account.nickname}</b> (${i.account.address})`
 					}
-			pallet: <b style="background-color: ${COLOR.Primary}">${this.pallet(i)}</b> |
-			method: <b style="background-color: ${COLOR.Primary}">${this.method(i)}</b> |
-			data: ${this.data(i)}
-		</li>`
+				pallet: <b style="background-color: ${COLOR.Primary}">${this.pallet(i)}</b> |
+				method: <b style="background-color: ${COLOR.Primary}">${this.method(i)}</b> |
+				data: ${this.data(i)}
+			</li>`
 			)}
 	</ul>
 </p>

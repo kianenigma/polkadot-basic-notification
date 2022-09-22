@@ -10,9 +10,9 @@
 		"plugin:@typescript-eslint/recommended"
 	],
 	"rules": {
-		"indent": [
-			"error",
-			"tab"
-		]
+		// "indent": [
+		// 	"error",
+		// 	"tab"
+		// ]
 	}
 }

@@ -20,7 +20,7 @@ export class MatrixReporter implements Reporter {
 	}
 
 	async report(meta: Report): Promise<void> {
-		const innerContent = new GenericReporter(meta).HTMLTemplate();
+		const innerContent = new GenericReporter(meta).htmlTemplate();
 		const content = {
 			formatted_body: innerContent,
 			body: innerContent,

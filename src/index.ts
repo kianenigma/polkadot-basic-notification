@@ -4,7 +4,7 @@ import { ApiPromise, WsProvider } from '@polkadot/api';
 import { GenericExtrinsic, GenericEvent } from '@polkadot/types/';
 import { Header } from '@polkadot/types/interfaces/runtime';
 import { logger } from './logger';
-import { methodOf, palletOf, Report, Reporter, ReportType } from './reporters';
+import { methodOf, palletOf, NotificationReport, Reporter, NotificationReportType, StartupReport } from './reporters';
 import { ApiSubscription, AppConfig, ConfigBuilder } from './config';
 import {
 	ConcreteAccount,
@@ -17,12 +17,10 @@ import {
 } from './matching';
 
 // TODO: full verification of all config fields.
-// TODO: Fix the hack of converting all account ids to 'Address' later (must have test that we catch
-// wrong ss58 accounts)
-// TODO: send a restart event optionally.
 // TODO: Aleph-zero finality is a good test-case.
 
 
+/// The notification class for a single chain.
 class ChainNotification {
 	reporters: Reporter[];
 	accounts: ConcreteAccount[];
@@ -64,7 +62,7 @@ class ChainNotification {
 				listOfSkippedBlocks.map(async (n) => {
 					const blockHash = await this.api.rpc.chain.getBlockHash(n);
 					const header: Header = await this.api.rpc.chain.getHeader(blockHash);
-					logger.warn(`catching up with a skipped block ${header.number}`);
+					logger.debug(`catching up with a skipped block ${header.number}`);
 					await this.perHeader(header);
 				});
 			} else if (
@@ -90,10 +88,10 @@ class ChainNotification {
 		const hash = header.hash;
 		const timestamp = (await blockApi.query.timestamp.now()).toBn().toNumber();
 
-		const report: Report = { hash, chain, number, timestamp, inputs: [] };
+		const report: NotificationReport = { hash, chain, number, timestamp, inputs: [], _type: 'notification' };
 
 		const processMatchOutcome = (
-			type: ReportType,
+			type: NotificationReportType,
 			inner: GenericExtrinsic | GenericEvent,
 			outcome: MatchOutcome
 		) => {
@@ -122,14 +120,14 @@ class ChainNotification {
 
 		// check all extrinsics.
 		for (const ext of extrinsics) {
-			const type = ReportType.Extrinsic;
+			const type = NotificationReportType.Extrinsic;
 			const matchOutcome = matchExtrinsicToAccounts(ext, accounts);
 			processMatchOutcome(type, ext, matchOutcome);
 		}
 
 		// check events.
 		for (const event of events.map((e) => e.event)) {
-			const type = ReportType.Event;
+			const type = NotificationReportType.Event;
 			const matchOutcome = matchEventToAccounts(event, accounts);
 			processMatchOutcome(type, event, matchOutcome);
 		}
@@ -165,6 +163,12 @@ async function main() {
 	const retry = true;
 	while (retry) {
 		try {
+			// send a startup notification
+			const report: StartupReport = { time: new Date(), _type: 'status' }
+			reporters.forEach(async (r) => {
+				await r.report(report)
+			})
+
 			await listAllChains(config, reporters);
 			// this is just to make sure we NEVER reach this code. The above function never returns,
 			// unless if we trap in an exception.

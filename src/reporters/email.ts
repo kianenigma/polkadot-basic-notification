@@ -57,7 +57,7 @@ export class EmailReporter implements Reporter {
 	}
 
 	async report(meta: Report): Promise<void> {
-		const content = new GenericReporter(meta).HTMLTemplate();
-		await this.sendEmail(`${meta.chain} notifications at #${meta.number}`, content);
+		const content = new GenericReporter(meta).htmlTemplate();
+		await this.sendEmail(`notification from polkadot-basic-notification`, content);
 	}
 }

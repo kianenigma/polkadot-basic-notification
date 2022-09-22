@@ -10,6 +10,7 @@ import {
 import * as yaml from 'js-yaml';
 import yargs from 'yargs';
 import { ConcreteAccount, MethodSubscription } from '../matching';
+import { isAddress } from '@polkadot/util-crypto';
 
 const ENV_CONFIG = 'DOT_NOTIF_CONF';
 
@@ -78,15 +79,11 @@ export class ConfigBuilder {
 		const config = ConfigBuilder.verifyConfig(anyConfig);
 
 		if (config.reporters.matrix !== undefined) {
-			try {
-				config.reporters.matrix.userId =
-					process.env.MATRIX_USERID || config.reporters.matrix.userId;
-				config.reporters.matrix.accessToken =
-					process.env.MATRIX_ACCESSTOKEN || config.reporters.matrix.accessToken;
-			} catch (error) {
-				console.error('Error connecting to Matrix: ', error);
-				process.exit(1);
-			}
+			config.reporters.matrix.userId =
+				process.env.MATRIX_USERID || config.reporters.matrix.userId;
+			config.reporters.matrix.accessToken =
+				process.env.MATRIX_ACCESSTOKEN || config.reporters.matrix.accessToken;
+
 		}
 
 		const reporters: Reporter[] = [];
@@ -126,17 +123,21 @@ export class ConfigBuilder {
 	}
 
 	static verifyConfig(config: any): AppConfig {
-		const missing = (f: string) => {
-			logger.error(`aborting due to missing config field ${f}`);
+		const error = (f: string) => {
+			logger.error(`aborting due to error ${f}`);
 			process.exit(1);
 		};
 
-		if (!config.accounts) missing('accounts');
-		if (!config.endpoints) missing('endpoints');
-		if (!config.method_subscription) missing('method_subscription');
-		if (!config.api_subscription) missing('api_subscription');
-		if (!config.reporters) missing('reporters');
+		if (!config.accounts) error('missing accounts');
+		if (!config.endpoints) error('missing endpoints');
+		if (!config.method_subscription) error('missing method_subscription');
+		if (!config.api_subscription) error('missing api_subscription');
+		if (!config.reporters) error('missing reporters');
 
-		return config as AppConfig;
+		const parsedConfig = config as AppConfig;
+
+		if (!parsedConfig.accounts.every((a) => isAddress(a.address.toString()))) error('invalid account address')
+
+		return parsedConfig;
 	}
 }
