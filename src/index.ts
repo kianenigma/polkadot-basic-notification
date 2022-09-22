@@ -5,14 +5,13 @@ import { GenericExtrinsic, GenericEvent } from '@polkadot/types/';
 import { Header } from '@polkadot/types/interfaces/runtime';
 import { logger } from './logger';
 import { methodOf, palletOf, NotificationReport, Reporter, NotificationReportType, StartupReport } from './reporters';
-import { ApiSubscription, AppConfig, ConfigBuilder } from './config';
+import { ApiSubscription, AppConfig, ConfigBuilder, MethodSubscription } from './config';
 import {
 	ConcreteAccount,
 	ExtendedAccount,
 	matchEventToAccounts,
 	matchExtrinsicToAccounts,
 	MatchOutcome,
-	MethodSubscription,
 	subscriptionFilter
 } from './matching';
 
@@ -29,7 +28,8 @@ class ChainNotification {
 		this.reporters = reporters;
 		this.methodSubscription = config.method_subscription;
 		this.apiSubscription = config.api_subscription;
-		this.accounts = config.accounts;
+		// we've already checked that all accounts are valid in config.ts
+		this.accounts = config.accounts.map((raw) => { return { address: api.createType('Address', raw.address), nickname: raw.nickname } });
 		this.api = api;
 		this.chain = chain;
 	}
@@ -141,11 +141,6 @@ async function listAllChains(config: AppConfig, reporters: Reporter[]) {
 			const provider = new WsProvider(e);
 			const api = await ApiPromise.create({ provider });
 			const chain = (await api.rpc.system.chain()).toString();
-			// NOTE: bit of a hack, we must convert all addresses to a legit address type after we
-			// have build the API.
-			config.accounts = config.accounts.map(({ address, nickname }) => {
-				return { nickname, address: api.createType('Address', address) };
-			});
 			new ChainNotification(api, chain, reporters, config).start();
 		})
 	);

@@ -4,6 +4,7 @@
 		"wss://westend-rpc.polkadot.io"
 	],
 	"method_subscription": {
+		"type": "only",
 		"only": [
 			{
 				"pallet": "balances",

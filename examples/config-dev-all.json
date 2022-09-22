@@ -8,7 +8,9 @@
 	"endpoints": [
 		"wss://westend-rpc.polkadot.io"
 	],
-	"method_subscription": "all",
+	"method_subscription": {
+		"type": "all"
+	},
 	"api_subscription": "head",
 	"reporters": {
 		"console": {}

@@ -21,8 +21,37 @@ describe('Config files', () => {
 
 	it('should catch invalid address', () => {
 		const badConfig = JSON.parse(readFileSync(join(__dirname, "../../examples/config-dev-all.json")).toString());
-		// @ts-ignore
 		badConfig["accounts"][0]["address"] = "KIAN";
+		expect(() => ConfigBuilder.verifyConfig(badConfig)).toThrowError();
+	})
+
+	it('should catch invalid method subscription', () => {
+		const badConfig = JSON.parse(readFileSync(join(__dirname, "../../examples/config-dev-all.json")).toString());
+		badConfig["method_subscription"] = 'all';
+		expect(() => ConfigBuilder.verifyConfig(badConfig)).toThrowError();
+
+		badConfig["method_subscription"] = 'foo';
+		expect(() => ConfigBuilder.verifyConfig(badConfig)).toThrowError();
+
+		badConfig["method_subscription"] = 'only: {}';
+		expect(() => ConfigBuilder.verifyConfig(badConfig)).toThrowError();
+	})
+
+	it('should catch missing filed', () => {
+		let badConfig = JSON.parse(readFileSync(join(__dirname, "../../examples/config-dev-all.json")).toString());
+		delete badConfig['accounts']
+		expect(() => ConfigBuilder.verifyConfig(badConfig)).toThrowError();
+
+		badConfig = JSON.parse(readFileSync(join(__dirname, "../../examples/config-dev-all.json")).toString());
+		delete badConfig['method_subscription']
+		expect(() => ConfigBuilder.verifyConfig(badConfig)).toThrowError();
+
+		badConfig = JSON.parse(readFileSync(join(__dirname, "../../examples/config-dev-all.json")).toString());
+		delete badConfig['api_subscription']
+		expect(() => ConfigBuilder.verifyConfig(badConfig)).toThrowError();
+
+		badConfig = JSON.parse(readFileSync(join(__dirname, "../../examples/config-dev-all.json")).toString());
+		delete badConfig['reporters']
 		expect(() => ConfigBuilder.verifyConfig(badConfig)).toThrowError();
 	})
 });

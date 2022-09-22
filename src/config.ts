@@ -9,8 +9,10 @@ import {
 } from './reporters';
 import * as yaml from 'js-yaml';
 import yargs from 'yargs';
-import { ConcreteAccount, MethodSubscription } from './matching';
 import { isAddress } from '@polkadot/util-crypto';
+import * as t from "ts-interface-checker";
+import AppConfigTI from "./config-ti"
+
 
 const ENV_CONFIG = 'DOT_NOTIF_CONF';
 
@@ -21,6 +23,32 @@ export const argv = yargs(process.argv.slice(2))
 		default: process.env[ENV_CONFIG]
 	})
 	.parseSync();
+
+export interface Only {
+	type: 'only';
+	only: ISubscriptionTarget[];
+}
+
+export interface Ignore {
+	type: 'ignore';
+	ignore: ISubscriptionTarget[];
+}
+
+export interface All {
+	type: 'all'
+}
+
+export type MethodSubscription = All | Only | Ignore;
+
+export interface ISubscriptionTarget {
+	pallet: string;
+	method: string;
+}
+
+export interface RawAccount {
+	address: string,
+	nickname: string,
+}
 
 export interface EmailConfig {
 	from: string;
@@ -53,16 +81,11 @@ export enum ApiSubscription {
 }
 
 export interface AppConfig {
-	accounts: ConcreteAccount[];
+	accounts: RawAccount[];
 	endpoints: string[];
 	method_subscription: MethodSubscription;
 	api_subscription: ApiSubscription;
 	reporters: ReportersConfig;
-}
-
-export interface App {
-	config: AppConfig;
-	reporters: Reporter[];
 }
 
 export class ConfigBuilder {
@@ -128,13 +151,15 @@ export class ConfigBuilder {
 			process.exit(1);
 		};
 
-		if (!config.accounts) error('missing accounts');
-		if (!config.endpoints) error('missing endpoints');
-		if (!config.method_subscription) error('missing method_subscription');
-		if (!config.api_subscription) error('missing api_subscription');
-		if (!config.reporters) error('missing reporters');
-
+		const checker = t.createCheckers(AppConfigTI);
+		checker.AppConfig.check(config)
 		const parsedConfig = config as AppConfig;
+
+		// if (!config.accounts) error('missing accounts');
+		// if (!config.endpoints) error('missing endpoints');
+		// if (!config.method_subscription) error('missing method_subscription');
+		// if (!config.api_subscription) error('missing api_subscription');
+		// if (!config.reporters) error('missing reporters');
 
 		if (!parsedConfig.accounts.every((a) => isAddress(a.address.toString()))) error('invalid account address')
 

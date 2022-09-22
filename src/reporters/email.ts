@@ -31,7 +31,7 @@ export class EmailReporter implements Reporter {
 		logger.info(`✅ registering email reporter from ${this.from} to ${this.to}.`);
 	}
 
-	async maybeEncrypt(message: string): Promise<string> {
+	async maybeEncrypt(message: string): Promise<openpgp.WebStream<string>> {
 		if (this.maybePubkey) {
 			const enc = await openpgp.encrypt({
 				message: await openpgp.createMessage({ text: message }),

@@ -4,8 +4,12 @@
 		"wss://westend-rpc.polkadot.io"
 	],
 	"method_subscription": {
+		"type": "only",
 		"only": [
-			"transfer"
+			{
+				"pallet": "balances",
+				"method": "transfer"
+			}
 		]
 	},
 	"api_subscription": "head",
