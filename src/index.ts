@@ -149,13 +149,13 @@ async function listAllChains(config: AppConfig, reporters: Reporter[]) {
 }
 
 async function main() {
-	const { config, reporters } = new ConfigBuilder();
+	const { config, reporters, configName } = new ConfigBuilder();
 
 	const retry = true;
 	while (retry) {
 		try {
 			// send a startup notification
-			const report: StartupReport = { time: new Date(), _type: 'status' }
+			const report: StartupReport = { time: new Date(), configName, _type: 'status' }
 			reporters.forEach(async (r) => {
 				await r.report(report)
 			})

@@ -12,6 +12,7 @@ import yargs from 'yargs';
 import { isAddress } from '@polkadot/util-crypto';
 import * as t from "ts-interface-checker";
 import AppConfigTI from "./config-ti"
+import { TelegramConfig, TelegramReporter } from './reporters/telegram';
 
 
 const ENV_CONFIG = 'DOT_NOTIF_CONF';
@@ -72,6 +73,7 @@ export interface ReportersConfig {
 	email?: EmailConfig;
 	matrix?: MatrixConfig;
 	fs?: FsConfig;
+	telegram?: TelegramConfig,
 	console?: unknown;
 }
 
@@ -91,6 +93,7 @@ export interface AppConfig {
 export class ConfigBuilder {
 	config: AppConfig;
 	reporters: Reporter[];
+	configName: string;
 
 	constructor() {
 		if (!argv.c) {
@@ -100,6 +103,7 @@ export class ConfigBuilder {
 
 		const anyConfig = ConfigBuilder.loadConfig(argv.c);
 		const config = ConfigBuilder.verifyConfig(anyConfig);
+		this.configName = argv.c;
 
 		if (config.reporters.matrix !== undefined) {
 			config.reporters.matrix.userId =
@@ -117,6 +121,9 @@ export class ConfigBuilder {
 			}
 			if (reporterType === 'console') {
 				reporters.push(new ConsoleReporter());
+			}
+			if (reporterType == 'telegram') {
+				reporters.push(new TelegramReporter(config.reporters[reporterType] as TelegramConfig))
 			}
 			if (reporterType === 'fs') {
 				reporters.push(new FileSystemReporter(config.reporters[reporterType] as FsConfig));
@@ -154,12 +161,6 @@ export class ConfigBuilder {
 		const checker = t.createCheckers(AppConfigTI);
 		checker.AppConfig.check(config)
 		const parsedConfig = config as AppConfig;
-
-		// if (!config.accounts) error('missing accounts');
-		// if (!config.endpoints) error('missing endpoints');
-		// if (!config.method_subscription) error('missing method_subscription');
-		// if (!config.api_subscription) error('missing api_subscription');
-		// if (!config.reporters) error('missing reporters');
 
 		if (!parsedConfig.accounts.every((a) => isAddress(a.address.toString()))) error('invalid account address')
 

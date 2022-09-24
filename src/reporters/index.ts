@@ -31,6 +31,7 @@ export interface ReportInput {
 export interface StartupReport {
 	_type: "status";
 	time: Date,
+	configName: string
 }
 
 export interface NotificationReport {
@@ -71,6 +72,7 @@ export interface Reporter {
 
 interface ReporterHelper {
 	htmlTemplate(): string;
+	markdownTemplate(): string;
 	rawTemplate(): string;
 	jsonTemplate(): string;
 }
@@ -92,6 +94,9 @@ export class GenericReporter implements ReporterHelper {
 	htmlTemplate(): string {
 		return this.innerHelper.htmlTemplate()
 	}
+	markdownTemplate(): string {
+		return this.innerHelper.markdownTemplate();
+	}
 	rawTemplate(): string {
 		return this.innerHelper.rawTemplate()
 	}
@@ -110,7 +115,10 @@ class StartupReporterHelper implements ReporterHelper {
 		return `<p>${this.rawTemplate()}</p>`
 	}
 	rawTemplate(): string {
-		return `Program (re)started at ${this.meta.time.toDateString()}`
+		return `Program with config ${this.meta.configName} (re)started at ${this.meta.time.toTimeString()}`
+	}
+	markdownTemplate(): string {
+		return this.rawTemplate()
 	}
 	jsonTemplate(): string {
 		return JSON.stringify(this.meta)
@@ -205,9 +213,19 @@ class NotificationReporterHelper implements ReporterHelper {
 	rawTemplate(): string {
 		return `🎤 Events at #${this.meta.number}:  ${this.meta.inputs.map(
 			(i) =>
-				`[🧾 ${i.type} ${i.account === 'Wildcard' ? '' : `for ${i.account.nickname}`
-				} | 💻 pallet: ${this.pallet(i)} - method:${this.method(i)} | 💽 data: ${this.data(i)}]`
+				`\n\t🧾 ${i.type} ${i.account === 'Wildcard' ? '' : `for ${i.account.nickname}`} |
+\t💻 pallet: ${this.pallet(i)} - method :${this.method(i)}
+\t💽 data: ${this.data(i)}]`
 		)} (${this.subscan()})`;
+	}
+
+	markdownTemplate(): string {
+		return `🎤 Events at [#${this.meta.number}](${this.subscan()}):  ${this.meta.inputs.map(
+			(i) =>
+				`\n\t🧾 _${i.type}_ ${i.account === 'Wildcard' ? '' : `for **${i.account.nickname}**`}
+\t💻 pallet: *${this.pallet(i)}** - method: *${this.method(i)}**
+\t💽 data: \`${this.data(i)}\``
+		)}`;
 	}
 
 	jsonTemplate(): string {
