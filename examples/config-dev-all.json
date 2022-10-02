@@ -5,9 +5,7 @@
 			"nickname": "wnd-god"
 		}
 	],
-	"endpoints": [
-		"wss://westend-rpc.polkadot.io"
-	],
+	"endpoints": ["wss://westend-rpc.polkadot.io", "wss://ws.azero.dev"],
 	"method_subscription": {
 		"type": "all"
 	},

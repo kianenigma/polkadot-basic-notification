@@ -4,7 +4,14 @@ import { ApiPromise, WsProvider } from '@polkadot/api';
 import { GenericExtrinsic, GenericEvent } from '@polkadot/types/';
 import { Header } from '@polkadot/types/interfaces/runtime';
 import { logger } from './logger';
-import { methodOf, palletOf, NotificationReport, Reporter, NotificationReportType, StartupReport } from './reporters';
+import {
+	methodOf,
+	palletOf,
+	NotificationReport,
+	Reporter,
+	NotificationReportType,
+	StartupReport
+} from './reporters';
 import { ApiSubscription, AppConfig, ConfigBuilder, MethodSubscription } from './config';
 import {
 	ConcreteAccount,
@@ -29,7 +36,9 @@ class ChainNotification {
 		this.methodSubscription = config.method_subscription;
 		this.apiSubscription = config.api_subscription;
 		// we've already checked that all accounts are valid in config.ts
-		this.accounts = config.accounts.map((raw) => { return { address: api.createType('Address', raw.address), nickname: raw.nickname } });
+		this.accounts = config.accounts.map((raw) => {
+			return { address: api.createType('Address', raw.address), nickname: raw.nickname };
+		});
 		this.api = api;
 		this.chain = chain;
 	}
@@ -84,7 +93,14 @@ class ChainNotification {
 		const hash = header.hash;
 		const timestamp = (await blockApi.query.timestamp.now()).toBn().toNumber();
 
-		const report: NotificationReport = { hash, chain, number, timestamp, inputs: [], _type: 'notification' };
+		const report: NotificationReport = {
+			hash,
+			chain,
+			number,
+			timestamp,
+			inputs: [],
+			_type: 'notification'
+		};
 
 		const processMatchOutcome = (
 			type: NotificationReportType,
@@ -155,10 +171,10 @@ async function main() {
 	while (retry) {
 		try {
 			// send a startup notification
-			const report: StartupReport = { time: new Date(), configName, _type: 'status' }
+			const report: StartupReport = { time: new Date(), configName, _type: 'status' };
 			reporters.forEach(async (r) => {
-				await r.report(report)
-			})
+				await r.report(report);
+			});
 
 			await listAllChains(config, reporters);
 			// this is just to make sure we NEVER reach this code. The above function never returns,

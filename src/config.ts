@@ -10,10 +10,9 @@ import {
 import * as yaml from 'js-yaml';
 import yargs from 'yargs';
 import { isAddress } from '@polkadot/util-crypto';
-import * as t from "ts-interface-checker";
-import AppConfigTI from "./config-ti"
+import * as t from 'ts-interface-checker';
+import AppConfigTI from './config-ti';
 import { TelegramConfig, TelegramReporter } from './reporters/telegram';
-
 
 const ENV_CONFIG = 'DOT_NOTIF_CONF';
 
@@ -36,7 +35,7 @@ export interface Ignore {
 }
 
 export interface All {
-	type: 'all'
+	type: 'all';
 }
 
 export type MethodSubscription = All | Only | Ignore;
@@ -47,8 +46,8 @@ export interface ISubscriptionTarget {
 }
 
 export interface RawAccount {
-	address: string,
-	nickname: string,
+	address: string;
+	nickname: string;
 }
 
 export interface EmailConfig {
@@ -73,7 +72,7 @@ export interface ReportersConfig {
 	email?: EmailConfig;
 	matrix?: MatrixConfig;
 	fs?: FsConfig;
-	telegram?: TelegramConfig,
+	telegram?: TelegramConfig;
 	console?: unknown;
 }
 
@@ -106,11 +105,9 @@ export class ConfigBuilder {
 		this.configName = argv.c;
 
 		if (config.reporters.matrix !== undefined) {
-			config.reporters.matrix.userId =
-				process.env.MATRIX_USERID || config.reporters.matrix.userId;
+			config.reporters.matrix.userId = process.env.MATRIX_USERID || config.reporters.matrix.userId;
 			config.reporters.matrix.accessToken =
 				process.env.MATRIX_ACCESSTOKEN || config.reporters.matrix.accessToken;
-
 		}
 
 		const reporters: Reporter[] = [];
@@ -123,7 +120,7 @@ export class ConfigBuilder {
 				reporters.push(new ConsoleReporter());
 			}
 			if (reporterType == 'telegram') {
-				reporters.push(new TelegramReporter(config.reporters[reporterType] as TelegramConfig))
+				reporters.push(new TelegramReporter(config.reporters[reporterType] as TelegramConfig));
 			}
 			if (reporterType === 'fs') {
 				reporters.push(new FileSystemReporter(config.reporters[reporterType] as FsConfig));
@@ -149,7 +146,7 @@ export class ConfigBuilder {
 	}
 
 	static loadConfig(path: string): unknown {
-		return yaml.load(readFileSync(path, 'utf8'))
+		return yaml.load(readFileSync(path, 'utf8'));
 	}
 
 	static verifyConfig(config: any): AppConfig {
@@ -159,10 +156,11 @@ export class ConfigBuilder {
 		};
 
 		const checker = t.createCheckers(AppConfigTI);
-		checker.AppConfig.check(config)
+		checker.AppConfig.check(config);
 		const parsedConfig = config as AppConfig;
 
-		if (!parsedConfig.accounts.every((a) => isAddress(a.address.toString()))) error('invalid account address')
+		if (!parsedConfig.accounts.every((a) => isAddress(a.address.toString())))
+			error('invalid account address');
 
 		return parsedConfig;
 	}

@@ -1,10 +1,9 @@
 # Polkadot Basic Notifications 🔴 📣
 
-A *dead-simple*, yet *highly **effective*** notification system for Polkadot and its parachains (or,
+A _dead-simple_, yet \*highly **effective\*** notification system for Polkadot and its parachains (or,
 any substrate-based chain).
 
 ![Untitled(2)](https://user-images.githubusercontent.com/5588131/158027440-a819bad8-c28a-4662-9c5a-b2f850f6ee36.png)
-
 
 ## Configuration
 

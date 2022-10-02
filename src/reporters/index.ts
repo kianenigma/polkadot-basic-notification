@@ -29,13 +29,13 @@ export interface ReportInput {
 }
 
 export interface StartupReport {
-	_type: "status";
-	time: Date,
-	configName: string
+	_type: 'status';
+	time: Date;
+	configName: string;
 }
 
 export interface NotificationReport {
-	_type: "notification";
+	_type: 'notification';
 	hash: Hash;
 	number: number;
 	chain: string;
@@ -46,7 +46,10 @@ export interface NotificationReport {
 export type Report = NotificationReport | StartupReport;
 
 /// Method of a transaction or an event, e.g. `transfer` or `Deposited`.
-export function methodOf(type: NotificationReportType, input: GenericEvent | GenericExtrinsic): string {
+export function methodOf(
+	type: NotificationReportType,
+	input: GenericEvent | GenericExtrinsic
+): string {
 	if (type === NotificationReportType.Event) {
 		return input.method.toString();
 	} else {
@@ -55,7 +58,10 @@ export function methodOf(type: NotificationReportType, input: GenericEvent | Gen
 }
 
 /// Pallet of a transaction or an event, e.g. `Balances` or `System`.
-export function palletOf(type: NotificationReportType, input: GenericEvent | GenericExtrinsic): string {
+export function palletOf(
+	type: NotificationReportType,
+	input: GenericEvent | GenericExtrinsic
+): string {
 	if (type === NotificationReportType.Event) {
 		// TODO: there's probably a better way for this?
 		// @ts-ignore
@@ -69,14 +75,12 @@ export interface Reporter {
 	report(report: Report): Promise<void>;
 }
 
-
 interface ReporterHelper {
 	htmlTemplate(): string;
 	markdownTemplate(): string;
 	rawTemplate(): string;
 	jsonTemplate(): string;
 }
-
 
 export class GenericReporter implements ReporterHelper {
 	innerHelper: StartupReporterHelper | NotificationReporterHelper;
@@ -92,16 +96,16 @@ export class GenericReporter implements ReporterHelper {
 	}
 
 	htmlTemplate(): string {
-		return this.innerHelper.htmlTemplate()
+		return this.innerHelper.htmlTemplate();
 	}
 	markdownTemplate(): string {
 		return this.innerHelper.markdownTemplate();
 	}
 	rawTemplate(): string {
-		return this.innerHelper.rawTemplate()
+		return this.innerHelper.rawTemplate();
 	}
 	jsonTemplate(): string {
-		return this.innerHelper.jsonTemplate()
+		return this.innerHelper.jsonTemplate();
 	}
 }
 
@@ -112,16 +116,18 @@ class StartupReporterHelper implements ReporterHelper {
 	}
 
 	htmlTemplate(): string {
-		return `<p>${this.rawTemplate()}</p>`
+		return `<p>${this.rawTemplate()}</p>`;
 	}
 	rawTemplate(): string {
-		return `Program with config ${this.meta.configName} (re)started at ${this.meta.time.toTimeString()}`
+		return `Program with config ${
+			this.meta.configName
+		} (re)started at ${this.meta.time.toTimeString()}`;
 	}
 	markdownTemplate(): string {
-		return this.rawTemplate()
+		return this.rawTemplate();
 	}
 	jsonTemplate(): string {
-		return JSON.stringify(this.meta)
+		return JSON.stringify(this.meta);
 	}
 }
 
@@ -136,9 +142,9 @@ class NotificationReporterHelper implements ReporterHelper {
 		return str.length < MAX_FORMATTED_MSG_LEN
 			? str
 			: `${str.substring(0, MAX_FORMATTED_MSG_LEN / 2)}..${str.substring(
-				str.length - MAX_FORMATTED_MSG_LEN / 2,
-				str.length
-			)}`;
+					str.length - MAX_FORMATTED_MSG_LEN / 2,
+					str.length
+			  )}`;
 	}
 
 	formatData(data: Codec): string {
@@ -186,21 +192,23 @@ class NotificationReporterHelper implements ReporterHelper {
 		rest.inputs = trimmedInputs;
 		return `
 <p>
-	<p>📣 <b> Notification</b> at ${this.chain()} #<a href='${this.subscan()}'>${this.meta.number
-			}</a> aka ${new Date(this.meta.timestamp).toTimeString()}</p>
+	<p>📣 <b> Notification</b> at ${this.chain()} #<a href='${this.subscan()}'>${
+			this.meta.number
+		}</a> aka ${new Date(this.meta.timestamp).toTimeString()}</p>
 	<ul>
 		${this.meta.inputs.map(
-				(i) => `
+			(i) => `
 		<li>
-			💻 type: ${i.type} | ${i.account === 'Wildcard'
-						? ``
-						: `for <b style="background-color: ${COLOR.Primary}">${i.account.nickname}</b> (${i.account.address})`
-					}
+			💻 type: ${i.type} | ${
+				i.account === 'Wildcard'
+					? ``
+					: `for <b style="background-color: ${COLOR.Primary}">${i.account.nickname}</b> (${i.account.address})`
+			}
 				pallet: <b style="background-color: ${COLOR.Primary}">${this.pallet(i)}</b> |
 				method: <b style="background-color: ${COLOR.Primary}">${this.method(i)}</b> |
 				data: ${this.data(i)}
 			</li>`
-			)}
+		)}
 	</ul>
 </p>
 <details>
