@@ -5,6 +5,13 @@ any substrate-based chain).
 
 ![Untitled(2)](https://user-images.githubusercontent.com/5588131/158027440-a819bad8-c28a-4662-9c5a-b2f850f6ee36.png)
 
+Supported reporters:
+
+- Email (with optional end to end encryption)
+- Telegram
+- Matrix
+- Log file.
+
 ## Configuration
 
 You need to provide one configuration file to the program, which specifies:
@@ -39,24 +46,36 @@ These configurations can be provided either as JSON or YAML. See [Examples](./ex
 	],
 	// a case-sensitive list of methods that you want to subscribe to to. A 'method' is either the
 	// name of a transaction (usually lower_snake_case) or an event name (usually lowerCamelCase).
-	// Correct values are: 'all', or { 'ignore': .. }, or { 'only': .. }. 'Ignore' implies
-	// "everything is monitored except the given".
+	// 3 types exist here: 'Only', 'ignore', or 'all'.
 	"method_subscription": {
-		"only": [
-			{
-				"pallet": "balances",
-				"method": "transfer"
-			},
-			{
-				"pallet": "electionProvierMultiPhase",
-				"method": "*"
-			},
-			{
-				"pallet": "*",
-				"method": "remark"
-			}
-		]
+		// chose one of the below 3 options:
+		// Listen to all methods. Useful to track all interactions around an account.
+		{ 'type': 'all' }
+		// Listen only to these methods:
+		{
+			'type': 'only'
+			"only": [
+				{
+					"pallet": "balances",
+					"method": "transfer"
+				},
+				{
+					"pallet": "electionProvierMultiPhase",
+					"method": "*"
+				},
+				{
+					"pallet": "*",
+					"method": "remark"
+				}
+			]
+		}
+		// listen to all except these methods. Useful to reduce the noise of 'all' type.
+		{
+			'type': 'ignore'
+			"only": [..]
+		}
 	},
+
 	// This is where you specify which reporters you want to use.
 	"reporters": {
 		// if provided, report all events to a matrix room.
@@ -90,6 +109,15 @@ These configurations can be provided either as JSON or YAML. See [Examples](./ex
 				}
 			}
 		},
+
+		"telegram": {
+			// the id of the chat to which you want to send the message. The bot/account of choice
+			// must be allowed to send messages to this chat.
+			// see: https://stackoverflow.com/questions/32423837/telegram-bot-how-to-get-a-group-chat-id
+			"chatId": 123455,
+			// the access token of the bot.
+			"botToken": "..."
+		}
 
 		// if provided, writes all reports to the file at the given path. The file is appended to
 		"fs": {
