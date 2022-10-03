@@ -3,6 +3,7 @@ import { GenericExtrinsic, GenericEvent } from '@polkadot/types/';
 import { Codec } from '@polkadot/types-codec/types';
 import { ExtendedAccount } from '../matching';
 import { formatBalance } from '@polkadot/util';
+import { EventStatus } from 'matrix-js-sdk';
 
 export { EmailReporter } from './email';
 export { FileSystemReporter } from './fs';
@@ -44,6 +45,26 @@ export interface NotificationReport {
 }
 
 export type Report = NotificationReport | StartupReport;
+
+export function serializeReport(report: Report): string {
+	return JSON.stringify(report)
+}
+
+export function deserializeReport(input: string): Report {
+	const obj = JSON.parse(input) as Report;
+	switch (obj._type) {
+		case 'notification': {
+			process.exit(1);
+			break;
+		}
+		case 'status': {
+			const report: StartupReport = { ...obj };
+			report.time = new Date(report.time);
+			return report;
+		}
+	}
+
+}
 
 /// Method of a transaction or an event, e.g. `transfer` or `Deposited`.
 export function methodOf(

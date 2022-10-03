@@ -161,7 +161,7 @@ async function listAllChains(config: AppConfig, reporters: Reporter[]) {
 		})
 	);
 	// a rather wacky way to make sure this function never returns.
-	return new Promise(() => { });
+	return new Promise(() => {});
 }
 
 async function main() {
