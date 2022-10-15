@@ -167,6 +167,15 @@ async function listAllChains(config: AppConfig, reporters: Reporter[]) {
 async function main() {
 	const { config, reporters, configName } = new ConfigBuilder();
 
+	process.on('exit', () => {
+		// if they are batch reporters, clean them.
+		reporters.forEach(async (r) => {
+			if (r.clean) {
+				r.clean();
+			}
+		});
+	});
+
 	const retry = true;
 	while (retry) {
 		try {
@@ -181,6 +190,13 @@ async function main() {
 			// unless if we trap in an exception.
 			process.exit(1);
 		} catch (e) {
+			// if they are batch reporters, clean them.
+			reporters.forEach(async (r) => {
+				if (r.clean) {
+					r.clean();
+				}
+			});
+
 			logger.error(`retrying due to error: ${e}`);
 		}
 	}

@@ -30,29 +30,47 @@ export const RawAccount = t.iface([], {
 	nickname: 'string'
 });
 
+export const BatchConfig = t.iface([], {
+	interval: 'number'
+});
+
 export const EmailConfig = t.iface([], {
 	from: 'string',
 	to: t.array('string'),
 	gpgpubkey: t.opt('string'),
-	transporter: 'any'
+	transporter: 'any',
+	batch: t.opt('BatchConfig')
 });
 
 export const MatrixConfig = t.iface([], {
 	userId: 'string',
 	accessToken: 'string',
 	roomId: 'string',
-	server: 'string'
+	server: 'string',
+	batch: t.opt('BatchConfig')
 });
 
 export const FsConfig = t.iface([], {
-	path: 'string'
+	path: 'string',
+	batch: t.opt('BatchConfig')
+});
+
+export const ConsoleConfig = t.iface([], {
+	batch: t.opt('BatchConfig')
+});
+
+export const TelegramConfig = t.iface([], {
+	chatId: 'number',
+	botToken: 'string',
+	batch: t.opt('BatchConfig')
 });
 
 export const ReportersConfig = t.iface([], {
 	email: t.opt('EmailConfig'),
 	matrix: t.opt('MatrixConfig'),
 	fs: t.opt('FsConfig'),
-	console: t.opt('unknown')
+	telegram: t.opt('TelegramConfig'),
+	console: t.opt('ConsoleConfig')
 });
 
 export const ApiSubscription = t.enumtype({
@@ -75,9 +93,12 @@ const exportedTypeSuite: t.ITypeSuite = {
 	MethodSubscription,
 	ISubscriptionTarget,
 	RawAccount,
+	BatchConfig,
 	EmailConfig,
 	MatrixConfig,
 	FsConfig,
+	ConsoleConfig,
+	TelegramConfig,
 	ReportersConfig,
 	ApiSubscription,
 	AppConfig

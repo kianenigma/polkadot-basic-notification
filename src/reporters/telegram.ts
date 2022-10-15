@@ -1,15 +1,11 @@
 import { Telegraf } from 'telegraf';
 import { GenericReporter, Report, Reporter } from '.';
+import { TelegramConfig } from '../config';
 import { logger } from '../logger';
-
-export interface TelegramConfig {
-	botToken: string;
-	chatId: string;
-}
 
 export class TelegramReporter implements Reporter {
 	bot: Telegraf;
-	chatId: string;
+	chatId: number;
 
 	constructor(config: TelegramConfig) {
 		this.bot = new Telegraf(config.botToken);

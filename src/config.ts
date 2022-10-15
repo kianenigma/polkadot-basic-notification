@@ -12,7 +12,10 @@ import yargs from 'yargs';
 import { isAddress } from '@polkadot/util-crypto';
 import * as t from 'ts-interface-checker';
 import AppConfigTI from './config-ti';
-import { TelegramConfig, TelegramReporter } from './reporters/telegram';
+import { TelegramReporter } from './reporters/telegram';
+import { BatchReporter } from './reporters/console';
+import { createHash } from 'crypto';
+import { TextEncoder } from 'util';
 
 const ENV_CONFIG = 'DOT_NOTIF_CONF';
 
@@ -50,11 +53,16 @@ export interface RawAccount {
 	nickname: string;
 }
 
+export interface BatchConfig {
+	interval: number;
+}
+
 export interface EmailConfig {
 	from: string;
 	to: string[];
 	gpgpubkey?: string;
 	transporter: any;
+	batch?: BatchConfig;
 }
 
 export interface MatrixConfig {
@@ -62,10 +70,22 @@ export interface MatrixConfig {
 	accessToken: string;
 	roomId: string;
 	server: string;
+	batch?: BatchConfig;
 }
 
 export interface FsConfig {
 	path: string;
+	batch?: BatchConfig;
+}
+
+export interface ConsoleConfig {
+	batch?: BatchConfig;
+}
+
+export interface TelegramConfig {
+	chatId: number;
+	botToken: string;
+	batch?: BatchConfig;
 }
 
 export interface ReportersConfig {
@@ -73,7 +93,7 @@ export interface ReportersConfig {
 	matrix?: MatrixConfig;
 	fs?: FsConfig;
 	telegram?: TelegramConfig;
-	console?: unknown;
+	console?: ConsoleConfig;
 }
 
 export enum ApiSubscription {
@@ -87,6 +107,21 @@ export interface AppConfig {
 	method_subscription: MethodSubscription;
 	api_subscription: ApiSubscription;
 	reporters: ReportersConfig;
+}
+
+function maybeBatchify<R extends Reporter>(
+	reporter: R,
+	batchConfig?: BatchConfig
+): R | BatchReporter<R> {
+	if (batchConfig && batchConfig.interval) {
+		logger.info(`🏘 batching ${reporter} by ${batchConfig.interval}`);
+		const hash = createHash('sha256')
+			.update(new TextEncoder().encode(JSON.stringify(reporter)))
+			.digest('hex');
+		return new BatchReporter(reporter, batchConfig.interval * 1000, `batch-${hash}`);
+	} else {
+		return reporter;
+	}
 }
 
 export class ConfigBuilder {
@@ -113,21 +148,29 @@ export class ConfigBuilder {
 		const reporters: Reporter[] = [];
 		for (const reporterType in config.reporters) {
 			if (reporterType === 'email') {
-				const reporter = new EmailReporter(config.reporters[reporterType] as EmailConfig);
-				reporters.push(reporter);
+				const rConf = config.reporters[reporterType] as EmailConfig;
+				const reporter = new EmailReporter(rConf);
+				reporters.push(maybeBatchify(reporter, rConf.batch));
 			}
 			if (reporterType === 'console') {
-				reporters.push(new ConsoleReporter());
+				const rConf = config.reporters[reporterType] as ConsoleConfig;
+				const reporter = new ConsoleReporter();
+				reporters.push(maybeBatchify(reporter, rConf.batch));
 			}
 			if (reporterType == 'telegram') {
-				reporters.push(new TelegramReporter(config.reporters[reporterType] as TelegramConfig));
+				const rConf = config.reporters[reporterType] as TelegramConfig;
+				const reporter = new TelegramReporter(rConf);
+				reporters.push(maybeBatchify(reporter, rConf.batch));
 			}
 			if (reporterType === 'fs') {
-				reporters.push(new FileSystemReporter(config.reporters[reporterType] as FsConfig));
+				const rConf = config.reporters[reporterType] as FsConfig;
+				const reporter = new FileSystemReporter(rConf);
+				reporters.push(maybeBatchify(reporter, rConf.batch));
 			}
 			if (reporterType === 'matrix') {
-				const reporter = new MatrixReporter(config.reporters[reporterType] as MatrixConfig);
-				reporters.push(reporter);
+				const rConf = config.reporters[reporterType] as MatrixConfig;
+				const reporter = new MatrixReporter(rConf);
+				reporters.push(maybeBatchify(reporter, rConf.batch));
 			}
 		}
 

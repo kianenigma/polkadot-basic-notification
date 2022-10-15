@@ -47,7 +47,7 @@ export interface NotificationReport {
 export type Report = NotificationReport | StartupReport;
 
 export function serializeReport(report: Report): string {
-	return JSON.stringify(report)
+	return JSON.stringify(report);
 }
 
 export function deserializeReport(input: string): Report {
@@ -63,7 +63,6 @@ export function deserializeReport(input: string): Report {
 			return report;
 		}
 	}
-
 }
 
 /// Method of a transaction or an event, e.g. `transfer` or `Deposited`.
@@ -94,6 +93,7 @@ export function palletOf(
 
 export interface Reporter {
 	report(report: Report): Promise<void>;
+	clean?(): void;
 }
 
 interface ReporterHelper {

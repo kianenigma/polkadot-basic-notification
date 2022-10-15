@@ -1,0 +1,16 @@
+{
+	"accounts": [
+		{
+			"address": "5FUDdxaaZfye6ogJgqHh3Usqd6WN6q8aApFH4XNjU9iDvC49",
+			"nickname": "wnd-god"
+		}
+	],
+	"endpoints": ["wss://westend-rpc.polkadot.io", "wss://ws.azero.dev"],
+	"method_subscription": {
+		"type": "all"
+	},
+	"api_subscription": "head",
+	"reporters": {
+		"console": { "batch": { "interval": 10 } }
+	}
+}

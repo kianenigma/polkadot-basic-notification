@@ -10,6 +10,8 @@
 		"plugin:@typescript-eslint/recommended"
 	],
 	"rules": {
+		"@typescript-eslint/ban-ts-comment": "warn",
+		"@typescript-eslint/no-empty-function": "warn"
 		// "indent": [
 		// 	"error",
 		// 	"tab"

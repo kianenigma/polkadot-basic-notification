@@ -22,12 +22,15 @@ export class BatchReporter<Inner extends Reporter> implements Reporter {
 	inner: Inner;
 	handle: NodeJS.Timer;
 
-	constructor(inner: Inner, internal: number) {
-		this.interval = internal;
-		this.storagePath = './temp';
+	constructor(inner: Inner, interval: number, storagePath: string) {
+		this.interval = interval;
+		this.storagePath = storagePath;
 		this.inner = inner;
 
-		this.flush();
+		const ignore = this.flush();
+		if (ignore.length) {
+			logger.warn(`ignoring ${ignore.length} old reports from ${storagePath}`);
+		}
 
 		this.handle = setInterval(async () => {
 			const batchedReports = this.flush();
@@ -59,7 +62,7 @@ export class BatchReporter<Inner extends Reporter> implements Reporter {
 		return Promise.resolve();
 	}
 
-	clean() {
+	clean(): void {
 		clearInterval(this.handle);
 		unlinkSync(this.storagePath);
 	}
