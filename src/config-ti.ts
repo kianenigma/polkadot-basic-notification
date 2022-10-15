@@ -31,7 +31,8 @@ export const RawAccount = t.iface([], {
 });
 
 export const BatchConfig = t.iface([], {
-	interval: 'number'
+	interval: 'number',
+	misc: t.opt('boolean')
 });
 
 export const EmailConfig = t.iface([], {

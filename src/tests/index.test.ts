@@ -1,8 +1,7 @@
 import { existsSync, readdirSync, readFileSync, statSync, unlinkSync } from 'fs';
 import { join } from 'path';
 import { ConfigBuilder } from '../config';
-import { ConsoleReporter, FileSystemReporter, StartupReport } from '../reporters';
-import { BatchReporter } from '../reporters/console';
+import { BatchReporter, ConsoleReporter, FileSystemReporter, MiscReport, NotificationReport } from '../reporters';
 
 const mockProcessExit = jest.spyOn(process, 'exit').mockImplementation((code) => {
 	throw new Error(`Process.exit(${code})`);
@@ -78,62 +77,62 @@ describe('Config files', () => {
 	});
 });
 
-const r = (data: string): StartupReport => {
-	return { _type: 'status', configName: data, time: new Date() };
+const r = (message: string): MiscReport => {
+	return { _type: 'misc', message, time: new Date() };
 };
+
+const n = (): NotificationReport => {
+	return { _type: "notification", chain: "foo", details: [], number: 10, hash: "0x123", timestamp: 10 }
+}
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
+const CONSOLE_PATH = './dont-care';
+const BATCH_PATH = './test-data';
+const reportLines = () =>
+	existsSync(CONSOLE_PATH) ? readFileSync(CONSOLE_PATH).toString().split('\n').length - 1 : 0;
+
 describe('batch reporting', () => {
-	it('reporters can be nested', () => {
-		const consoleReporter = new ConsoleReporter();
-		const outer = new BatchReporter(consoleReporter, 1000, './test-data');
-		expect(existsSync('./test-data'))
-		outer.clean();
-		expect(!existsSync('./test-data'))
+	beforeEach(() => {
+		if (existsSync(BATCH_PATH)) unlinkSync(BATCH_PATH);
+		if (existsSync(CONSOLE_PATH)) unlinkSync(CONSOLE_PATH);
 	});
 
-	it('startup reports can be batched', async () => {
-		const path = './dont-care';
-		if (existsSync(path)) unlinkSync(path);
-		const tempPath = './test-data'
+	it('reporters can be nested', () => {
+		const consoleReporter = new ConsoleReporter();
 
-		const reportLines = () =>
-			existsSync(path) ? readFileSync(path).toString().split('\n').length - 1 : 0;
+		expect(!BATCH_PATH);
+		const outer = new BatchReporter(consoleReporter, { interval: 1 }, BATCH_PATH);
+		expect(BATCH_PATH);
+		outer.clean();
+		expect(!existsSync('./test-data'));
+	});
 
-		const fsReporter = new FileSystemReporter({ path });
-		const outer = new BatchReporter(fsReporter, 3000, tempPath);
+	it('misc reports can be dispatched immediately', async () => {
+		const fsReporter = new FileSystemReporter({ path: CONSOLE_PATH });
+		const outer = new BatchReporter(fsReporter, { interval: 3, misc: true }, BATCH_PATH);
 
 		expect(reportLines()).toEqual(0);
 
 		outer.report(r('foo'));
+		expect(reportLines()).toEqual(1);
 		outer.report(r('bar'));
+		expect(reportLines()).toEqual(2);
 		outer.report(r('baz'));
-
-		expect(reportLines()).toEqual(0);
-
-		await sleep(3500);
 
 		expect(reportLines()).toEqual(3);
 		outer.clean();
 	});
 
-	it('notification report can be batched', () => {
-		const path = './dont-care';
-		if (existsSync(path)) unlinkSync(path);
-		const tempPath = './test-data'
-
-		const reportLines = () =>
-			existsSync(path) ? readFileSync(path).toString().split('\n').length - 1 : 0;
-
-		const fsReporter = new FileSystemReporter({ path });
-		const outer = new BatchReporter(fsReporter, 3000, tempPath);
+	it('notification report can be batched', async () => {
+		const fsReporter = new FileSystemReporter({ path: CONSOLE_PATH });
+		const outer = new BatchReporter(fsReporter, { interval: 1 }, BATCH_PATH);
 
 		expect(reportLines()).toEqual(0);
 
-		outer.report(r('foo'));
-		outer.report(r('bar'));
-		outer.report(r('baz'));
+		outer.report(n());
+		outer.report(n());
+		outer.report(n());
 
 		expect(reportLines()).toEqual(0);
 
@@ -144,26 +143,20 @@ describe('batch reporting', () => {
 	});
 
 	it('storage is cleaned', async () => {
-		const path = './dont-care';
-		if (existsSync(path)) unlinkSync(path);
-		const tempPath = './test-data'
+		const fsReporter = new FileSystemReporter({ path: CONSOLE_PATH });
+		const outer = new BatchReporter(fsReporter, { interval: 3 }, BATCH_PATH);
 
-		const fsReporter = new FileSystemReporter({ path });
-		const outer = new BatchReporter(fsReporter, 1, tempPath);
-
-		expect(existsSync(tempPath))
-		outer.report(r('foo'));
-		outer.report(r('bar'));
-		outer.report(r('baz'));
-		expect(existsSync(tempPath))
+		expect(existsSync(BATCH_PATH));
+		outer.report(n());
+		outer.report(n());
+		outer.report(n());
+		expect(existsSync(BATCH_PATH));
 
 		await sleep(3500);
-		expect(existsSync(tempPath))
+		expect(existsSync(BATCH_PATH));
 
-		expect(existsSync(tempPath))
+		expect(existsSync(BATCH_PATH));
 		outer.clean();
-		expect(!existsSync(tempPath))
+		expect(!existsSync(BATCH_PATH));
 	});
 });
-
-

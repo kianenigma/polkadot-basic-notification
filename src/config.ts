@@ -1,6 +1,7 @@
 import { logger } from './logger';
 import { readFileSync } from 'fs';
 import {
+	BatchReporter,
 	ConsoleReporter,
 	EmailReporter,
 	FileSystemReporter,
@@ -11,9 +12,8 @@ import * as yaml from 'js-yaml';
 import yargs from 'yargs';
 import { isAddress } from '@polkadot/util-crypto';
 import * as t from 'ts-interface-checker';
-import AppConfigTI from './config-ti';
+import AppConfigTI, { BatchConfig } from './config-ti';
 import { TelegramReporter } from './reporters/telegram';
-import { BatchReporter } from './reporters/console';
 import { createHash } from 'crypto';
 import { TextEncoder } from 'util';
 
@@ -55,6 +55,7 @@ export interface RawAccount {
 
 export interface BatchConfig {
 	interval: number;
+	misc?: boolean;
 }
 
 export interface EmailConfig {
@@ -111,14 +112,14 @@ export interface AppConfig {
 
 function maybeBatchify<R extends Reporter>(
 	reporter: R,
+	type: string,
 	batchConfig?: BatchConfig
 ): R | BatchReporter<R> {
 	if (batchConfig && batchConfig.interval) {
-		logger.info(`🏘 batching ${reporter} by ${batchConfig.interval}`);
 		const hash = createHash('sha256')
 			.update(new TextEncoder().encode(JSON.stringify(reporter)))
 			.digest('hex');
-		return new BatchReporter(reporter, batchConfig.interval * 1000, `batch-${hash}`);
+		return new BatchReporter(reporter, batchConfig, `batch-${hash}`);
 	} else {
 		return reporter;
 	}
@@ -150,27 +151,27 @@ export class ConfigBuilder {
 			if (reporterType === 'email') {
 				const rConf = config.reporters[reporterType] as EmailConfig;
 				const reporter = new EmailReporter(rConf);
-				reporters.push(maybeBatchify(reporter, rConf.batch));
+				reporters.push(maybeBatchify(reporter, reporterType, rConf.batch));
 			}
 			if (reporterType === 'console') {
 				const rConf = config.reporters[reporterType] as ConsoleConfig;
 				const reporter = new ConsoleReporter();
-				reporters.push(maybeBatchify(reporter, rConf.batch));
+				reporters.push(maybeBatchify(reporter, reporterType, rConf.batch));
 			}
 			if (reporterType == 'telegram') {
 				const rConf = config.reporters[reporterType] as TelegramConfig;
 				const reporter = new TelegramReporter(rConf);
-				reporters.push(maybeBatchify(reporter, rConf.batch));
+				reporters.push(maybeBatchify(reporter, reporterType, rConf.batch));
 			}
 			if (reporterType === 'fs') {
 				const rConf = config.reporters[reporterType] as FsConfig;
 				const reporter = new FileSystemReporter(rConf);
-				reporters.push(maybeBatchify(reporter, rConf.batch));
+				reporters.push(maybeBatchify(reporter, reporterType, rConf.batch));
 			}
 			if (reporterType === 'matrix') {
 				const rConf = config.reporters[reporterType] as MatrixConfig;
 				const reporter = new MatrixReporter(rConf);
-				reporters.push(maybeBatchify(reporter, rConf.batch));
+				reporters.push(maybeBatchify(reporter, reporterType, rConf.batch));
 			}
 		}
 

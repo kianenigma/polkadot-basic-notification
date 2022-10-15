@@ -1,10 +1,8 @@
 import { Hash } from '@polkadot/types/interfaces/runtime';
-import { GenericExtrinsic, GenericEvent } from '@polkadot/types/';
-import { Codec } from '@polkadot/types-codec/types';
 import { ExtendedAccount } from '../matching';
-import { formatBalance } from '@polkadot/util';
-import { EventStatus } from 'matrix-js-sdk';
-
+import { logger } from '../logger';
+import { appendFileSync, existsSync, readFileSync, unlinkSync, writeFileSync } from 'fs';
+import { BatchConfig } from '../config';
 export { EmailReporter } from './email';
 export { FileSystemReporter } from './fs';
 export { MatrixReporter } from './matrix';
@@ -16,35 +14,43 @@ enum COLOR {
 	Primary = '#a3e4d7'
 }
 
-export enum NotificationReportType {
-	Event = 'Event',
-	Extrinsic = 'Extrinsic'
+export type NotificationReportType = 'event' | 'extrinsic';
+
+export interface EventInner {
+	type: 'event';
+	data: any;
 }
 
-export interface ReportInput {
-	account: ExtendedAccount;
-	type: NotificationReportType;
+export interface ExtrinsicInner {
+	type: 'extrinsic';
+	signer: string;
+	nonce: number;
+	data: any[];
+}
+
+export interface ReportDetail {
 	pallet: string;
 	method: string;
-	inner: GenericEvent | GenericExtrinsic;
+	account: ExtendedAccount;
+	inner: EventInner | ExtrinsicInner;
 }
 
-export interface StartupReport {
-	_type: 'status';
+export interface MiscReport {
+	_type: 'misc';
 	time: Date;
-	configName: string;
+	message: string;
 }
 
 export interface NotificationReport {
 	_type: 'notification';
-	hash: Hash;
+	hash: string;
 	number: number;
 	chain: string;
 	timestamp: number;
-	inputs: ReportInput[];
+	details: ReportDetail[];
 }
 
-export type Report = NotificationReport | StartupReport;
+export type Report = NotificationReport | MiscReport;
 
 export function serializeReport(report: Report): string {
 	return JSON.stringify(report);
@@ -54,40 +60,19 @@ export function deserializeReport(input: string): Report {
 	const obj = JSON.parse(input) as Report;
 	switch (obj._type) {
 		case 'notification': {
-			process.exit(1);
-			break;
+			const report: NotificationReport = { ...obj };
+			report.details.forEach((d) => {
+				if (d.inner.type == 'extrinsic') {
+					d.inner.nonce = Number(d.inner.nonce);
+				}
+			});
+			return report;
 		}
-		case 'status': {
-			const report: StartupReport = { ...obj };
+		case 'misc': {
+			const report: MiscReport = { ...obj };
 			report.time = new Date(report.time);
 			return report;
 		}
-	}
-}
-
-/// Method of a transaction or an event, e.g. `transfer` or `Deposited`.
-export function methodOf(
-	type: NotificationReportType,
-	input: GenericEvent | GenericExtrinsic
-): string {
-	if (type === NotificationReportType.Event) {
-		return input.method.toString();
-	} else {
-		return (input as GenericExtrinsic).meta.name.toString();
-	}
-}
-
-/// Pallet of a transaction or an event, e.g. `Balances` or `System`.
-export function palletOf(
-	type: NotificationReportType,
-	input: GenericEvent | GenericExtrinsic
-): string {
-	if (type === NotificationReportType.Event) {
-		// TODO: there's probably a better way for this?
-		// @ts-ignore
-		return input.toHuman().section;
-	} else {
-		return (input as GenericExtrinsic).method.section.toString();
 	}
 }
 
@@ -111,8 +96,8 @@ export class GenericReporter implements ReporterHelper {
 			case 'notification':
 				this.innerHelper = new NotificationReporterHelper(meta as NotificationReport);
 				break;
-			case 'status':
-				this.innerHelper = new StartupReporterHelper(meta as StartupReport);
+			case 'misc':
+				this.innerHelper = new StartupReporterHelper(meta as MiscReport);
 		}
 	}
 
@@ -131,8 +116,8 @@ export class GenericReporter implements ReporterHelper {
 }
 
 class StartupReporterHelper implements ReporterHelper {
-	meta: StartupReport;
-	constructor(meta: StartupReport) {
+	meta: MiscReport;
+	constructor(meta: MiscReport) {
 		this.meta = meta;
 	}
 
@@ -140,9 +125,7 @@ class StartupReporterHelper implements ReporterHelper {
 		return `<p>${this.rawTemplate()}</p>`;
 	}
 	rawTemplate(): string {
-		return `Program with config ${
-			this.meta.configName
-		} (re)started at ${this.meta.time.toTimeString()}`;
+		return `💌 Misc message: ${this.meta.message} at ${this.meta.time.toTimeString()}`;
 	}
 	markdownTemplate(): string {
 		return this.rawTemplate();
@@ -160,22 +143,13 @@ class NotificationReporterHelper implements ReporterHelper {
 	}
 
 	trimStr(str: string): string {
+		if (typeof str !== 'string') return str;
 		return str.length < MAX_FORMATTED_MSG_LEN
 			? str
 			: `${str.substring(0, MAX_FORMATTED_MSG_LEN / 2)}..${str.substring(
-					str.length - MAX_FORMATTED_MSG_LEN / 2,
-					str.length
-			  )}`;
-	}
-
-	formatData(data: Codec): string {
-		const r = data.toRawType().toLowerCase();
-		if (r == 'u128' || r.toLowerCase() == 'balance') {
-			// @ts-ignore
-			return formatBalance(data);
-		} else {
-			return this.trimStr(data.toString());
-		}
+				str.length - MAX_FORMATTED_MSG_LEN / 2,
+				str.length
+			)}`;
 	}
 
 	subscan(): string {
@@ -186,78 +160,146 @@ class NotificationReporterHelper implements ReporterHelper {
 		return `<b style="background-color: ${COLOR.Primary}">${this.meta.chain}</b>`;
 	}
 
-	method(input: ReportInput): string {
-		return input.method;
+	method(detail: ReportDetail): string {
+		return detail.method;
 	}
 
-	pallet(input: ReportInput): string {
-		return input.pallet;
+	pallet(detail: ReportDetail): string {
+		return detail.pallet;
 	}
 
-	data(input: ReportInput): string {
-		if (input.type === NotificationReportType.Event) {
-			return `[${(input.inner as GenericEvent).data.map((d) => this.formatData(d)).join(', ')}]`;
-		} else {
-			return `[${(input.inner as GenericExtrinsic).method.args
-				.map((d) => this.formatData(d))
-				.join(', ')}]`;
-		}
+	data(detail: ReportDetail): string {
+		return `[${detail.inner.data.map((d: any) => this.trimStr(d)).join(', ')}]`;
 	}
 
 	htmlTemplate(): string {
-		const { inputs, ...rest } = this.meta;
-		const trimmedInputs = inputs.map(({ account, type, inner }) => {
-			return { account, type, inner: this.trimStr(inner.toString()) };
-		});
-		// @ts-ignore
-		rest.inputs = trimmedInputs;
 		return `
 <p>
-	<p>📣 <b> Notification</b> at ${this.chain()} #<a href='${this.subscan()}'>${
-			this.meta.number
-		}</a> aka ${new Date(this.meta.timestamp).toTimeString()}</p>
+	<p>📣 <b> Notification</b> at ${this.chain()} #<a href='${this.subscan()}'>${this.meta.number
+			}</a> aka ${new Date(this.meta.timestamp).toTimeString()}</p>
 	<ul>
-		${this.meta.inputs.map(
-			(i) => `
+		${this.meta.details.map(
+				(i) => `
 		<li>
-			💻 type: ${i.type} | ${
-				i.account === 'Wildcard'
-					? ``
-					: `for <b style="background-color: ${COLOR.Primary}">${i.account.nickname}</b> (${i.account.address})`
-			}
+			💻 type: ${i.inner.type} | ${i.account === 'Wildcard'
+						? ``
+						: `for <b style="background-color: ${COLOR.Primary}">${i.account.nickname}</b> (${i.account.address})`
+					}
 				pallet: <b style="background-color: ${COLOR.Primary}">${this.pallet(i)}</b> |
 				method: <b style="background-color: ${COLOR.Primary}">${this.method(i)}</b> |
 				data: ${this.data(i)}
 			</li>`
-		)}
+			)}
 	</ul>
 </p>
 <details>
 	<summary>Raw details</summary>
-	<code>${JSON.stringify(rest)}</code>
+	<code>${JSON.stringify(this.meta)}</code>
 </details>
 `;
 	}
 
 	rawTemplate(): string {
-		return `🎤 Events at #${this.meta.number}:  ${this.meta.inputs.map(
-			(i) =>
-				`\n\t🧾 ${i.type} ${i.account === 'Wildcard' ? '' : `for ${i.account.nickname}`} |
-\t💻 pallet: ${this.pallet(i)} - method :${this.method(i)}
-\t💽 data: ${this.data(i)}]`
+		return `🎤 Events at #${this.meta.number}:  ${this.meta.details.map(
+			(d) =>
+				`\n\t🧾 ${d.inner.type} ${d.account === 'Wildcard' ? '' : `for ${d.account.nickname}`} |
+\t💻 pallet: ${this.pallet(d)} - method :${this.method(d)}
+\t💽 data: ${this.data(d)}]`
 		)} (${this.subscan()})`;
 	}
 
 	markdownTemplate(): string {
-		return `🎤 Events at [#${this.meta.number}](${this.subscan()}):  ${this.meta.inputs.map(
-			(i) =>
-				`\n\t🧾 _${i.type}_ ${i.account === 'Wildcard' ? '' : `for **${i.account.nickname}**`}
-\t💻 pallet: *${this.pallet(i)}** - method: *${this.method(i)}**
-\t💽 data: \`${this.data(i)}\``
+		return `🎤 Events at [#${this.meta.number}](${this.subscan()}):  ${this.meta.details.map(
+			(d) =>
+				`\n\t🧾 _${d.inner.type}_ ${d.account === 'Wildcard' ? '' : `for **${d.account.nickname}**`}
+\t💻 pallet: *${this.pallet(d)}* - method: *${this.method(d)}*
+\t💽 data: \`${this.data(d)}\``
 		)}`;
 	}
 
 	jsonTemplate(): string {
 		return JSON.stringify(this.meta);
+	}
+}
+
+export const SEPARATOR = ':-separator-:';
+
+export class BatchReporter<Inner extends Reporter> implements Reporter {
+	interval: number;
+	storagePath: string;
+	inner: Inner;
+	handle: NodeJS.Timer;
+	misc: boolean;
+
+	// TODO: misc flag is a bit strange.
+	constructor(inner: Inner, { interval, misc }: BatchConfig, storagePath: string) {
+		this.interval = interval * 1000;
+		this.storagePath = storagePath;
+		this.inner = inner;
+		this.misc = misc || false;
+
+		const ignore = this.flush();
+		if (ignore.length) {
+			logger.warn(`ignoring ${ignore.length} old reports from ${storagePath}`);
+		}
+
+		this.handle = setInterval(async () => {
+			const batchedReports = this.flush();
+			if (this.misc) {
+				this.inner.report({
+					_type: 'misc',
+					message: `flushing batches with interval ${this.interval}.`,
+					time: new Date()
+				});
+			}
+			for (const report of batchedReports) {
+				this.inner.report(report);
+			}
+		}, this.interval);
+
+		logger.info(
+			`setting up batch reporter around ${JSON.stringify(this.inner)} with interval ${this.interval
+			}`
+		);
+	}
+
+	flush(): Report[] {
+		const reports = existsSync(this.storagePath)
+			? readFileSync(this.storagePath)
+				.toString()
+				.split(SEPARATOR)
+				.filter((line) => line.length)
+				.map((line) => deserializeReport(line))
+			: [];
+		writeFileSync(this.storagePath, '');
+		return reports;
+	}
+
+	enqueue(report: Report) {
+		const packet = `${serializeReport(report)}${SEPARATOR}`;
+		logger.debug(`⏰ enqueuing report ${report._type} for later.`);
+		appendFileSync(this.storagePath, packet);
+	}
+
+	report(report: Report): Promise<void> {
+		if (this.misc) {
+			switch (report._type) {
+				case 'misc': {
+					this.inner.report(report);
+					break;
+				}
+				case 'notification': {
+					this.enqueue(report);
+				}
+			}
+		} else {
+			this.enqueue(report);
+		}
+		return Promise.resolve();
+	}
+
+	clean(): void {
+		clearInterval(this.handle);
+		unlinkSync(this.storagePath);
 	}
 }
