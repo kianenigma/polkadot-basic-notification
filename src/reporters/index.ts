@@ -78,6 +78,7 @@ export function deserializeReport(input: string): Report {
 
 export interface Reporter {
 	report(report: Report): Promise<void>;
+	groupReport?(reports: Report[]): Promise<void>;
 	clean?(): void;
 }
 
@@ -252,14 +253,17 @@ export class BatchReporter<Inner extends Reporter> implements Reporter {
 					time: new Date()
 				});
 			}
-			for (const report of batchedReports) {
-				this.inner.report(report);
+			if (this.inner.groupReport) {
+				this.inner.groupReport(batchedReports)
+			} else {
+				for (const report of batchedReports) {
+					this.inner.report(report);
+				}
 			}
 		}, this.interval);
 
 		logger.info(
-			`setting up batch reporter around ${JSON.stringify(this.inner)} with interval ${this.interval
-			}`
+			`setting up batch reporter with interval ${this.interval}.`
 		);
 	}
 

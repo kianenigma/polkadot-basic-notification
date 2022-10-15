@@ -227,6 +227,24 @@ async function main() {
 			}
 		});
 	});
+	process.on('SIGINT', () => {
+		// if they are batch reporters, clean them.
+		reporters.forEach(async (r) => {
+			if (r.clean) {
+				r.clean();
+			}
+			process.exit();
+		});
+	});
+	process.on('SIGQUIT', () => {
+		// if they are batch reporters, clean them.
+		reporters.forEach(async (r) => {
+			if (r.clean) {
+				r.clean();
+			}
+			process.exit();
+		});
+	});
 
 	const retry = true;
 	while (retry) {

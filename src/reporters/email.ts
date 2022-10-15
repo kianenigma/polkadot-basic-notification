@@ -60,4 +60,9 @@ export class EmailReporter implements Reporter {
 		const content = new GenericReporter(meta).htmlTemplate();
 		await this.sendEmail(`notification from polkadot-basic-notification`, content);
 	}
+
+	async groupReport(reports: Report[]): Promise<void> {
+		const content = reports.map((r) => new GenericReporter(r).htmlTemplate()).join("\n</hr>\n");
+		await this.sendEmail(`notification from polkadot-basic-notification`, content);
+	}
 }

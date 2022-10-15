@@ -32,4 +32,15 @@ export class MatrixReporter implements Reporter {
 		};
 		await this.client.sendEvent(this.roomId, 'm.room.message', content, '');
 	}
+
+	async groupReport(reports: Report[]): Promise<void> {
+		const innerContent = reports.map((r) => new GenericReporter(r).htmlTemplate()).join("\n</br>\n");
+		const content = {
+			formatted_body: innerContent,
+			body: innerContent,
+			msgtype: 'm.text',
+			format: 'org.matrix.custom.html'
+		};
+		await this.client.sendEvent(this.roomId, 'm.room.message', content, '');
+	}
 }

@@ -17,4 +17,9 @@ export class TelegramReporter implements Reporter {
 		const innerContent = new GenericReporter(report).markdownTemplate();
 		await this.bot.telegram.sendMessage(this.chatId, innerContent, { parse_mode: 'Markdown' });
 	}
+
+	async groupReport(reports: Report[]): Promise<void> {
+		const innerContent = reports.map((r) => new GenericReporter(r).markdownTemplate()).join("\n---\n");
+		await this.bot.telegram.sendMessage(this.chatId, innerContent, { parse_mode: 'Markdown' });
+	}
 }
