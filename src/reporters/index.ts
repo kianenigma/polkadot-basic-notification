@@ -148,9 +148,9 @@ class NotificationReporterHelper implements ReporterHelper {
 		return str.length < MAX_FORMATTED_MSG_LEN
 			? str
 			: `${str.substring(0, MAX_FORMATTED_MSG_LEN / 2)}..${str.substring(
-				str.length - MAX_FORMATTED_MSG_LEN / 2,
-				str.length
-			)}`;
+					str.length - MAX_FORMATTED_MSG_LEN / 2,
+					str.length
+			  )}`;
 	}
 
 	subscan(): string {
@@ -176,21 +176,23 @@ class NotificationReporterHelper implements ReporterHelper {
 	htmlTemplate(): string {
 		return `
 <p>
-	<p>📣 <b> Notification</b> at ${this.chain()} #<a href='${this.subscan()}'>${this.meta.number
-			}</a> aka ${new Date(this.meta.timestamp).toTimeString()}</p>
+	<p>📣 <b> Notification</b> at ${this.chain()} #<a href='${this.subscan()}'>${
+			this.meta.number
+		}</a> aka ${new Date(this.meta.timestamp).toTimeString()}</p>
 	<ul>
 		${this.meta.details.map(
-				(i) => `
+			(i) => `
 		<li>
-			💻 type: ${i.inner.type} | ${i.account === 'Wildcard'
-						? ``
-						: `for <b style="background-color: ${COLOR.Primary}">${i.account.nickname}</b> (${i.account.address})`
-					}
+			💻 type: ${i.inner.type} | ${
+				i.account === 'Wildcard'
+					? ``
+					: `for <b style="background-color: ${COLOR.Primary}">${i.account.nickname}</b> (${i.account.address})`
+			}
 				pallet: <b style="background-color: ${COLOR.Primary}">${this.pallet(i)}</b> |
 				method: <b style="background-color: ${COLOR.Primary}">${this.method(i)}</b> |
 				data: ${this.data(i)}
 			</li>`
-			)}
+		)}
 	</ul>
 </p>
 <details>
@@ -254,7 +256,7 @@ export class BatchReporter<Inner extends Reporter> implements Reporter {
 				});
 			}
 			if (this.inner.groupReport) {
-				this.inner.groupReport(batchedReports)
+				this.inner.groupReport(batchedReports);
 			} else {
 				for (const report of batchedReports) {
 					this.inner.report(report);
@@ -262,18 +264,16 @@ export class BatchReporter<Inner extends Reporter> implements Reporter {
 			}
 		}, this.interval);
 
-		logger.info(
-			`setting up batch reporter with interval ${this.interval}.`
-		);
+		logger.info(`setting up batch reporter with interval ${this.interval}.`);
 	}
 
 	flush(): Report[] {
 		const reports = existsSync(this.storagePath)
 			? readFileSync(this.storagePath)
-				.toString()
-				.split(SEPARATOR)
-				.filter((line) => line.length)
-				.map((line) => deserializeReport(line))
+					.toString()
+					.split(SEPARATOR)
+					.filter((line) => line.length)
+					.map((line) => deserializeReport(line))
 			: [];
 		writeFileSync(this.storagePath, '');
 		return reports;

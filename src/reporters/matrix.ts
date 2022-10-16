@@ -34,7 +34,9 @@ export class MatrixReporter implements Reporter {
 	}
 
 	async groupReport(reports: Report[]): Promise<void> {
-		const innerContent = reports.map((r) => new GenericReporter(r).htmlTemplate()).join("\n</br>\n");
+		const innerContent = reports
+			.map((r) => new GenericReporter(r).htmlTemplate())
+			.join('\n</br>\n');
 		const content = {
 			formatted_body: innerContent,
 			body: innerContent,

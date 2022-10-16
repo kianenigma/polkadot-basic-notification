@@ -1,7 +1,13 @@
 import { existsSync, readdirSync, readFileSync, statSync, unlinkSync } from 'fs';
 import { join } from 'path';
 import { ConfigBuilder } from '../config';
-import { BatchReporter, ConsoleReporter, FileSystemReporter, MiscReport, NotificationReport } from '../reporters';
+import {
+	BatchReporter,
+	ConsoleReporter,
+	FileSystemReporter,
+	MiscReport,
+	NotificationReport
+} from '../reporters';
 
 const mockProcessExit = jest.spyOn(process, 'exit').mockImplementation((code) => {
 	throw new Error(`Process.exit(${code})`);
@@ -82,8 +88,15 @@ const r = (message: string): MiscReport => {
 };
 
 const n = (): NotificationReport => {
-	return { _type: "notification", chain: "foo", details: [], number: 10, hash: "0x123", timestamp: 10 }
-}
+	return {
+		_type: 'notification',
+		chain: 'foo',
+		details: [],
+		number: 10,
+		hash: '0x123',
+		timestamp: 10
+	};
+};
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
