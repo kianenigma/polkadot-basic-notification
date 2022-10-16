@@ -95,13 +95,15 @@ These configurations can be provided either as JSON or YAML. See [Examples](./ex
 
 		// if provided, report all events to a set of email addresses.
 		"email": {
-			// the address from which you send the emails. It must be owned by the `transporter.auth` credentials once authenticated with `transporter.host`.
+			// the address from which you send the emails. It must be owned by the `transporter.auth`
+      //credentials once authenticated with `transporter.host`.
 			"from": "from@polkadot-basic-notification.xyz",
 			// The list of addresses that get notified.
 			"to": ["from1@dot-basic-notification.xyz", "from2@dot-basic-notification.xyz"],
 			// optional: if provided, your messages will be encrypted, but the formatting might not be as good.
 			"gpgpubkey": "./pub.key",
-			// this must be exactly the same object as used in the nodemailer library. See here for // more information: https://nodemailer.com/smtp/
+			// this must be exactly the same object as used in the nodemailer library. See here for
+      // more information: https://nodemailer.com/smtp/
 			"transporter": {
 				"host": "smtp.youremail.org",
 				"port": 587,
