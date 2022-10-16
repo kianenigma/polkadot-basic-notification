@@ -31,7 +31,7 @@ export class EmailReporter implements Reporter {
 		logger.info(`✅ registering email reporter from ${this.from} to ${this.to}.`);
 	}
 
-	async maybeEncrypt(message: string): Promise<string> {
+	async maybeEncrypt(message: string): Promise<openpgp.WebStream<string>> {
 		if (this.maybePubkey) {
 			const enc = await openpgp.encrypt({
 				message: await openpgp.createMessage({ text: message }),
@@ -57,7 +57,12 @@ export class EmailReporter implements Reporter {
 	}
 
 	async report(meta: Report): Promise<void> {
-		const content = new GenericReporter(meta).HTMLTemplate();
-		await this.sendEmail(`${meta.chain} notifications at #${meta.number}`, content);
+		const content = new GenericReporter(meta).htmlTemplate();
+		await this.sendEmail(`notification from polkadot-basic-notification`, content);
+	}
+
+	async groupReport(reports: Report[]): Promise<void> {
+		const content = reports.map((r) => new GenericReporter(r).htmlTemplate()).join("\n</hr>\n");
+		await this.sendEmail(`notification from polkadot-basic-notification`, content);
 	}
 }

@@ -5,12 +5,12 @@
 			"nickname": "wnd-god"
 		}
 	],
-	"endpoints": ["wss://westend-rpc.polkadot.io", "wss://ws.azero.dev"],
+	"endpoints": ["wss://westend-rpc.polkadot.io"],
 	"method_subscription": {
 		"type": "all"
 	},
 	"api_subscription": "head",
 	"reporters": {
-		"console": {}
+		"console": { "batch": { "interval": 10, "misc": true } }
 	}
 }

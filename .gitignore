@@ -7,3 +7,6 @@ config-p*.json
 *.log
 *.key
 *.ignore.json
+dont-care
+batch-*
+test-data
