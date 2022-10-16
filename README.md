@@ -10,7 +10,10 @@ Supported reporters:
 - Email (with optional end to end encryption)
 - Telegram
 - Matrix
-- Log file.
+- Filesystem
+
+Lastly, as of the recent 1.0 release, this exporter also supports **report batching**. In essence, multiple notifications are stored in a temporary storage, and are are batch-reported all at once. This is quite useful for e.g. your staking rewards, not receiving a single email
+reward, rather a batch once a day/week.
 
 ## Configuration
 
@@ -72,7 +75,7 @@ These configurations can be provided either as JSON or YAML. See [Examples](./ex
 		// listen to all except these methods. Useful to reduce the noise of 'all' type.
 		{
 			'type': 'ignore'
-			"only": [..]
+			"ignore": [..]
 		}
 	},
 
@@ -126,6 +129,16 @@ These configurations can be provided either as JSON or YAML. See [Examples](./ex
 
 		// enabling this will print all reports to console as well.
 		"console": {},
+
+		// any of the reporters can be batched. For example, a batched telegram reporter that send
+		// an update once per-day looks like this:
+		"telegram": {
+			"chatId": "123455",
+			"botToken": "...",
+			// batching interval is in seconds. If `misc` is set to true, miscellaneous messages
+			// (such as the startup report) are forwarded immediately, rather than being batched.
+			"batch": { "interval": 86400, "misc": true }
+		}
 	}
 }
 
@@ -153,30 +166,3 @@ $ docker build . -t polkadot-basic-notification -f builder.Dockerfile
 $ # note how the config file must be passed as an environment variable.
 $ docker run -e CONF=config.json polkadot-basic-notification
 ```
-
-## Under The Hood
-
-The underlying workings of this program is as follows: We have a list of accounts which we want to
-monitor, stored as ss58 string representation. The script then listens to incoming blocks of any
-given chain, and does a full-text search of the account strings in the `stringified` representation
-of both the transactions in the block, and entire events that are emitted at this block.
-
-This is super simple, yet enough to detect any interaction to or from your accounts of interest.
-Some covered examples are:
-
-- Any transaction signed by your accounts is detected, successful or unsuccessful.
-- Your staking rewards are detected both via the `Rewarded` and `Deposited` events.
-- Any transfer to your account is detected, both since your account will be an argument of the
-  `transfer` transaction, and the `Deposited` event.
-
-Nonetheless, the list goes way beyond this. The only known shortcoming of this is the lack of
-support for `pallet-indices`, which is essentially an alternative, shorter way to identify accounts.
-
-Any of such events creates a `report`. Any block that contains a non-zero number of reports is
-passed to an arbitrary number of `Reporter`s for delivery. The `Reporter`s are essentially the
-transport mechanism, i.e. how you want to be notified. Current implementations are:
-
-1. Matrix, using `matrix-js-sdk`.
-2. Email, optionally supporting GPG encryption as well.
-3. File system, writing to a file.
-4. Console, only sensible for testing.
