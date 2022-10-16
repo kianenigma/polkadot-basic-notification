@@ -114,7 +114,7 @@ These configurations can be provided either as JSON or YAML. See [Examples](./ex
 			// the id of the chat to which you want to send the message. The bot/account of choice
 			// must be allowed to send messages to this chat.
 			// see: https://stackoverflow.com/questions/32423837/telegram-bot-how-to-get-a-group-chat-id
-			"chatId": 123455,
+			"chatId": "123455",
 			// the access token of the bot.
 			"botToken": "..."
 		}

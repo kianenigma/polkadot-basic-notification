@@ -84,7 +84,7 @@ export interface ConsoleConfig {
 }
 
 export interface TelegramConfig {
-	chatId: number;
+	chatId: string;
 	botToken: string;
 	batch?: BatchConfig;
 }

@@ -5,7 +5,7 @@ import { logger } from '../logger';
 
 export class TelegramReporter implements Reporter {
 	bot: Telegraf;
-	chatId: number;
+	chatId: string;
 
 	constructor(config: TelegramConfig) {
 		this.bot = new Telegraf(config.botToken);
