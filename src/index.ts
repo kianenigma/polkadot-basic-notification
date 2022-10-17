@@ -213,7 +213,7 @@ async function listAllChains(config: AppConfig, reporters: Reporter[]) {
 		})
 	);
 	// a rather wacky way to make sure this function never returns.
-	return new Promise(() => {});
+	return new Promise(() => { });
 }
 
 async function main() {
@@ -260,9 +260,6 @@ async function main() {
 			});
 
 			await listAllChains(config, reporters);
-			// this is just to make sure we NEVER reach this code. The above function never returns,
-			// unless if we trap in an exception.
-			process.exit(1);
 		} catch (e) {
 			// if they are batch reporters, clean them.
 			reporters.forEach(async (r) => {
