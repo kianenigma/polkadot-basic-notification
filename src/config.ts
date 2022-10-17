@@ -56,6 +56,7 @@ export interface RawAccount {
 export interface BatchConfig {
 	interval: number;
 	misc?: boolean;
+	leftovers?: boolean
 }
 
 export interface EmailConfig {

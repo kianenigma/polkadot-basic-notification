@@ -139,7 +139,12 @@ These configurations can be provided either as JSON or YAML. See [Examples](./ex
       "botToken": "...",
       // batching interval is in seconds. If `misc` is set to true, miscellaneous messages
       // (such as the startup report) are forwarded immediately, rather than being batched.
-      "batch": { "interval": 86400, "misc": true }
+	  //
+	  // if `leftovers` is set, then any reports that are found from previous runs are dispatched
+	  // upon startup.
+	  //
+	  // `misc` and `leftovers` are optional.
+      "batch": { "interval": 86400, "misc": true, "leftovers": true }
     }
   }
 }

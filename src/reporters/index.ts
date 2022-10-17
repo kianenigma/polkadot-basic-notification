@@ -148,9 +148,9 @@ class NotificationReporterHelper implements ReporterHelper {
 		return str.length < MAX_FORMATTED_MSG_LEN
 			? str
 			: `${str.substring(0, MAX_FORMATTED_MSG_LEN / 2)}..${str.substring(
-					str.length - MAX_FORMATTED_MSG_LEN / 2,
-					str.length
-			  )}`;
+				str.length - MAX_FORMATTED_MSG_LEN / 2,
+				str.length
+			)}`;
 	}
 
 	subscan(): string {
@@ -176,23 +176,21 @@ class NotificationReporterHelper implements ReporterHelper {
 	htmlTemplate(): string {
 		return `
 <p>
-	<p>📣 <b> Notification</b> at ${this.chain()} #<a href='${this.subscan()}'>${
-			this.meta.number
-		}</a> aka ${new Date(this.meta.timestamp).toTimeString()}</p>
+	<p>📣 <b> Notification</b> at ${this.chain()} #<a href='${this.subscan()}'>${this.meta.number
+			}</a> aka ${new Date(this.meta.timestamp).toTimeString()}</p>
 	<ul>
 		${this.meta.details.map(
-			(i) => `
+				(i) => `
 		<li>
-			💻 type: ${i.inner.type} | ${
-				i.account === 'Wildcard'
-					? ``
-					: `for <b style="background-color: ${COLOR.Primary}">${i.account.nickname}</b> (${i.account.address})`
-			}
+			💻 type: ${i.inner.type} | ${i.account === 'Wildcard'
+						? ``
+						: `for <b style="background-color: ${COLOR.Primary}">${i.account.nickname}</b> (${i.account.address})`
+					}
 				pallet: <b style="background-color: ${COLOR.Primary}">${this.pallet(i)}</b> |
 				method: <b style="background-color: ${COLOR.Primary}">${this.method(i)}</b> |
 				data: ${this.data(i)}
 			</li>`
-		)}
+			)}
 	</ul>
 </p>
 <details>
@@ -234,16 +232,18 @@ export class BatchReporter<Inner extends Reporter> implements Reporter {
 	handle: NodeJS.Timer;
 	misc: boolean;
 
-	// TODO: misc flag is a bit strange.
-	constructor(inner: Inner, { interval, misc }: BatchConfig, storagePath: string) {
+	constructor(inner: Inner, { interval, misc, leftovers }: BatchConfig, storagePath: string) {
 		this.interval = interval * 1000;
 		this.storagePath = storagePath;
 		this.inner = inner;
 		this.misc = misc || false;
 
-		const ignore = this.flush();
-		if (ignore.length) {
-			logger.warn(`ignoring ${ignore.length} old reports from ${storagePath}`);
+		const ignored = this.flush();
+		if (ignored.length && leftovers) {
+			logger.warn(`sending out ${ignored.length} old reports from ${storagePath}`);
+			this.maybeGroupReport(ignored);
+		} else if (ignored.length) {
+			logger.warn(`ignoring ${ignored.length} old reports from ${storagePath}`);
 		}
 
 		this.handle = setInterval(async () => {
@@ -255,25 +255,29 @@ export class BatchReporter<Inner extends Reporter> implements Reporter {
 					time: new Date()
 				});
 			}
-			if (this.inner.groupReport) {
-				this.inner.groupReport(batchedReports);
-			} else {
-				for (const report of batchedReports) {
-					this.inner.report(report);
-				}
-			}
+			this.maybeGroupReport(batchedReports);
 		}, this.interval);
 
 		logger.info(`setting up batch reporter with interval ${this.interval}.`);
 	}
 
+	maybeGroupReport(batchedReports: Report[]) {
+		if (this.inner.groupReport) {
+			this.inner.groupReport(batchedReports);
+		} else {
+			for (const report of batchedReports) {
+				this.inner.report(report);
+			}
+		}
+	}
+
 	flush(): Report[] {
 		const reports = existsSync(this.storagePath)
 			? readFileSync(this.storagePath)
-					.toString()
-					.split(SEPARATOR)
-					.filter((line) => line.length)
-					.map((line) => deserializeReport(line))
+				.toString()
+				.split(SEPARATOR)
+				.filter((line) => line.length)
+				.map((line) => deserializeReport(line))
 			: [];
 		writeFileSync(this.storagePath, '');
 		return reports;
