@@ -9,7 +9,7 @@
 	"method_subscription": {
 		"type": "all"
 	},
-	"api_subscription": "head",
+	"api_subscription": "finalized",
 	"reporters": {
 		"console": {}
 	}

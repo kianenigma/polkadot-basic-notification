@@ -82,9 +82,11 @@ class ChainNotification {
 				header.number.toNumber() <= lastBlock
 			) {
 				logger.error(`This makes no sense ${header.number}`);
+			} else {
+				await this.perHeader(header);
+				lastBlock = header.number.toNumber();
 			}
-			await this.perHeader(header);
-			lastBlock = header.number.toNumber();
+
 		});
 	}
 
@@ -219,32 +221,24 @@ async function listAllChains(config: AppConfig, reporters: Reporter[]) {
 async function main() {
 	const { config, reporters, configName } = new ConfigBuilder();
 
-	process.on('exit', () => {
+	const graceful = () => {
 		// if they are batch reporters, clean them.
 		reporters.forEach(async (r) => {
 			if (r.clean) {
 				r.clean();
 			}
 		});
+		logger.error("gracefully shutting down...");
+		process.exit()
+	}
+
+	process.on('uncaughtException', (err) => {
+		console.log(`Caught exception: ${err}`);
 	});
-	process.on('SIGINT', () => {
-		// if they are batch reporters, clean them.
-		reporters.forEach(async (r) => {
-			if (r.clean) {
-				r.clean();
-			}
-			process.exit();
-		});
-	});
-	process.on('SIGQUIT', () => {
-		// if they are batch reporters, clean them.
-		reporters.forEach(async (r) => {
-			if (r.clean) {
-				r.clean();
-			}
-			process.exit();
-		});
-	});
+
+	// process.on('exit', graceful)
+	process.on('SIGINT', graceful);
+	process.on('SIGQUIT', graceful);
 
 	const retry = true;
 	while (retry) {

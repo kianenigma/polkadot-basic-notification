@@ -2,8 +2,6 @@ import { GenericReporter, Report, Reporter } from '.';
 import { MatrixConfig } from '../config';
 import * as sdk from 'matrix-js-sdk';
 import { logger } from '../logger';
-// temp workaround for: https://github.com/matrix-org/matrix-js-sdk/issues/2415
-import request from 'request';
 
 export class MatrixReporter implements Reporter {
 	client: sdk.MatrixClient;
@@ -14,7 +12,6 @@ export class MatrixReporter implements Reporter {
 			baseUrl: config.server,
 			accessToken: config.accessToken,
 			userId: config.userId,
-			request
 		});
 		this.roomId = config.roomId;
 		logger.info(
