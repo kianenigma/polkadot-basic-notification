@@ -6,12 +6,14 @@ import { readFileSync } from 'fs';
 import { logger } from '../logger';
 
 export class EmailReporter implements Reporter {
+	name: string;
 	maybePubkey: openpgp.Key | undefined;
 	transporter: nodemailer.Transporter;
 	from: string;
 	to: string[];
 
 	constructor(config: EmailConfig) {
+		this.name = "email";
 		if (config.transporter['dkim']) {
 			config.transporter['dkim']['privateKey'] = readFileSync(
 				config.transporter['dkim']['privateKey']
@@ -28,7 +30,7 @@ export class EmailReporter implements Reporter {
 		this.transporter = transporter;
 		this.from = config.from;
 		this.to = config.to;
-		logger.info(`✅ registering email reporter from ${this.from} to ${this.to}.`);
+		logger.info(`✅ [${this.name}] registering email reporter from ${this.from} to ${this.to}.`);
 	}
 
 	async maybeEncrypt(message: string): Promise<openpgp.WebStream<string>> {

@@ -1,4 +1,4 @@
-import { existsSync, readdirSync, readFileSync, statSync, unlinkSync } from 'fs';
+import { existsSync, readdirSync, readFileSync, unlinkSync } from 'fs';
 import { join } from 'path';
 import { ConfigBuilder } from '../config';
 import {

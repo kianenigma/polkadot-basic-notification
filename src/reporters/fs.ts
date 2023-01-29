@@ -4,10 +4,12 @@ import { FsConfig } from '../config';
 import { logger } from '../logger';
 
 export class FileSystemReporter implements Reporter {
+	name: string
 	path: string;
 	constructor(config: FsConfig) {
+		this.name = 'fs';
 		this.path = config.path;
-		logger.info(`✅ registering file system reporter`);
+		logger.info(`✅ [${this.name}] registering file system reporter`);
 	}
 
 	report(meta: Report): Promise<void> {

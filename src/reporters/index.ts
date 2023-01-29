@@ -1,4 +1,3 @@
-import { Hash } from '@polkadot/types/interfaces/runtime';
 import { ExtendedAccount } from '../matching';
 import { logger } from '../logger';
 import { appendFileSync, existsSync, readFileSync, unlinkSync, writeFileSync } from 'fs';
@@ -77,9 +76,10 @@ export function deserializeReport(input: string): Report {
 }
 
 export interface Reporter {
+	name: string,
 	report(report: Report): Promise<void>;
 	groupReport?(reports: Report[]): Promise<void>;
-	clean?(): void;
+	clean?(): Promise<void>;
 }
 
 interface ReporterHelper {
@@ -226,6 +226,7 @@ class NotificationReporterHelper implements ReporterHelper {
 export const SEPARATOR = ':-separator-:';
 
 export class BatchReporter<Inner extends Reporter> implements Reporter {
+	name: string;
 	interval: number;
 	storagePath: string;
 	inner: Inner;
@@ -237,6 +238,7 @@ export class BatchReporter<Inner extends Reporter> implements Reporter {
 		this.storagePath = storagePath;
 		this.inner = inner;
 		this.misc = misc || false;
+		this.name = `batch(${inner.name})`;
 
 		const ignored = this.flush();
 		if (ignored.length && leftovers) {
@@ -246,27 +248,33 @@ export class BatchReporter<Inner extends Reporter> implements Reporter {
 			logger.warn(`ignoring ${ignored.length} old reports from ${storagePath}`);
 		}
 
-		this.handle = setInterval(async () => {
-			const batchedReports = this.flush();
-			if (this.misc) {
-				this.inner.report({
-					_type: 'misc',
-					message: `flushing batches with interval ${this.interval}.`,
-					time: new Date()
-				});
-			}
-			this.maybeGroupReport(batchedReports);
-		}, this.interval);
-
-		logger.info(`setting up batch reporter with interval ${this.interval}.`);
+		this.handle = setInterval(this.onInterval, this.interval);
+		logger.info(`[${this.name}] setting up batch reporter with interval ${this.interval}.`);
 	}
 
-	maybeGroupReport(batchedReports: Report[]) {
+	async onInterval(): Promise<void> {
+		const batchedReports = this.flush();
+		logger.info(`[${this.name}] flushing ${batchedReports.length} reports from ${this.storagePath}`);
+
+		if (this.misc) {
+			await this.inner.report({
+				_type: 'misc',
+				message: `[${this.name}] flushing batches with interval ${this.interval}.`,
+				time: new Date()
+			});
+		}
+		if (batchedReports.length) {
+			await this.maybeGroupReport(batchedReports);
+		}
+		return Promise.resolve()
+	}
+
+	async maybeGroupReport(batchedReports: Report[]) {
 		if (this.inner.groupReport) {
-			this.inner.groupReport(batchedReports);
+			await this.inner.groupReport(batchedReports);
 		} else {
 			for (const report of batchedReports) {
-				this.inner.report(report);
+				await this.inner.report(report);
 			}
 		}
 	}
@@ -285,28 +293,21 @@ export class BatchReporter<Inner extends Reporter> implements Reporter {
 
 	enqueue(report: Report) {
 		const packet = `${serializeReport(report)}${SEPARATOR}`;
-		logger.debug(`⏰ enqueuing report ${report._type} for later.`);
+		logger.debug(`⏰ [${this.name}] enqueuing report ${report._type} for later.`);
 		appendFileSync(this.storagePath, packet);
 	}
 
 	report(report: Report): Promise<void> {
-		if (this.misc) {
-			switch (report._type) {
-				case 'misc': {
-					this.inner.report(report);
-					break;
-				}
-				case 'notification': {
-					this.enqueue(report);
-				}
-			}
+		if (this.misc && report._type === 'misc') {
+			this.inner.report(report);
 		} else {
 			this.enqueue(report);
 		}
 		return Promise.resolve();
 	}
 
-	clean(): void {
+	async clean() {
+		await this.onInterval()
 		clearInterval(this.handle);
 		unlinkSync(this.storagePath);
 	}

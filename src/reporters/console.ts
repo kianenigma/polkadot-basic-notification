@@ -2,8 +2,10 @@ import { GenericReporter, Report, Reporter } from '.';
 import { logger } from '../logger';
 
 export class ConsoleReporter implements Reporter {
+	name: string;
 	constructor() {
-		logger.info(`✅ registering console reporter`);
+		this.name = 'console';
+		logger.info(`✅ [${this.name}] registering console reporter`);
 	}
 
 	report(report: Report): Promise<void> {

@@ -22,6 +22,7 @@ import {
 	subscriptionFilter
 } from './matching';
 import { Codec } from '@polkadot/types-codec/types';
+import { head } from 'request';
 
 interface GenericNotification {
 	type: NotificationReportType;
@@ -58,33 +59,43 @@ class ChainNotification {
 		logger.info(`⛓ Starting listen to ${this.chain} [sub: ${this.apiSubscription}]`);
 
 		let lastBlock: number | undefined = undefined;
+		let pending = false;
 		const unsub = await subFn(async (header) => {
-			logger.debug(`checking block ${header.number} ${header.hash} of ${this.chain}`);
-			if (
-				lastBlock !== undefined &&
-				header.number.toNumber() != lastBlock + 1 &&
-				header.number.toNumber() > lastBlock
-			) {
-				const amountSkipped = header.number.toNumber() - 1 - lastBlock;
+			// if we are pending some operation, we don't want to do anything.
+			if (pending) { return }
+			logger.debug(`observed #${header.number} of ${this.chain}`);
+			// first time we always record whatever we see.
+			if (lastBlock === undefined) {
+				await this.perHeader(header);
+				lastBlock = header.number.toNumber();
+				return
+			}
+
+			if (header.number.toNumber() == lastBlock + 1) {
+				pending = true;
+				// if we see the next block as we expect.
+				await this.perHeader(header);
+				lastBlock = header.number.toNumber();
+				pending = false;
+			} else if (header.number.toNumber() > lastBlock) {
+				pending = true;
+				// if we see a block that's too much in the future.
+				const amountSkipped = header.number.toNumber() - lastBlock;
 				const listOfSkippedBlocks = Array.from(Array(amountSkipped).keys()).map(
 					(x) => x + 1 + (lastBlock || 0)
 				);
+				listOfSkippedBlocks.sort();
 
-				listOfSkippedBlocks.map(async (n) => {
+				Promise.all(listOfSkippedBlocks.map(async (n) => {
 					const blockHash = await this.api.rpc.chain.getBlockHash(n);
 					const header: Header = await this.api.rpc.chain.getHeader(blockHash);
-					logger.debug(`catching up with a skipped block ${header.number}`);
 					await this.perHeader(header);
-				});
-			} else if (
-				lastBlock !== undefined &&
-				header.number.toNumber() != lastBlock + 1 &&
-				header.number.toNumber() <= lastBlock
-			) {
-				logger.error(`This makes no sense ${header.number}`);
-			} else {
-				await this.perHeader(header);
+				}));
 				lastBlock = header.number.toNumber();
+				logger.debug(`⏰ catching up with a skipped blocks ${listOfSkippedBlocks} of ${this.chain}`);
+				pending = false;
+			} else {
+				logger.debug(`already seen.`);
 			}
 
 		});
@@ -221,19 +232,19 @@ async function listAllChains(config: AppConfig, reporters: Reporter[]) {
 async function main() {
 	const { config, reporters, configName } = new ConfigBuilder();
 
-	const graceful = () => {
+	const graceful = async () => {
 		// if they are batch reporters, clean them.
-		reporters.forEach(async (r) => {
+		for (const r of reporters) {
 			if (r.clean) {
-				r.clean();
+				await r.clean();
 			}
-		});
+		}
 		logger.error("gracefully shutting down...");
 		process.exit()
 	}
 
 	process.on('uncaughtException', (err) => {
-		console.log(`Caught exception: ${err}`);
+		console.log(`❌ Caught exception: ${err}`);
 	});
 
 	// process.on('exit', graceful)

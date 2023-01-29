@@ -5,9 +5,11 @@ import { logger } from '../logger';
 
 export class MatrixReporter implements Reporter {
 	client: sdk.MatrixClient;
+	name: string;
 	roomId: string;
 
 	constructor(config: MatrixConfig) {
+		this.name = 'matrix';
 		this.client = sdk.createClient({
 			baseUrl: config.server,
 			accessToken: config.accessToken,
@@ -15,7 +17,7 @@ export class MatrixReporter implements Reporter {
 		});
 		this.roomId = config.roomId;
 		logger.info(
-			`✅ registering matrix reporter from ${config.userId} to ${this.roomId}@${config.server}.`
+			`✅ [${this.name}] registering matrix reporter from ${config.userId} to ${this.roomId}@${config.server}.`
 		);
 	}
 
