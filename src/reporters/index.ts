@@ -248,7 +248,8 @@ export class BatchReporter<Inner extends Reporter> implements Reporter {
 			logger.warn(`ignoring ${ignored.length} old reports from ${storagePath}`);
 		}
 
-		this.handle = setInterval(this.onInterval, this.interval);
+		// fucking javascript and 'this'...
+		this.handle = setInterval(this.onInterval.bind(this), this.interval);
 		logger.info(`[${this.name}] setting up batch reporter with interval ${this.interval}.`);
 	}
 

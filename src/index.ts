@@ -219,8 +219,16 @@ class ChainNotification {
 async function listAllChains(config: AppConfig, reporters: Reporter[]) {
 	const _ = await Promise.all(
 		config.endpoints.map(async (e) => {
-			const provider = new WsProvider(e, 2500, {}, 10 * 60 * 1000);
-			const api = await ApiPromise.create({ provider });
+			const provider = new WsProvider(e);
+			const apiBuilder = new ApiPromise({ provider });
+
+			apiBuilder.on('connected', () => { logger.info(`💡 connected to ${e}`) });
+			apiBuilder.on('disconnected', () => { logger.info(`⚠️ disconnected from ${e}`) });
+			apiBuilder.on('error', () => { logger.info(`❌ error occurred ${e}`) });
+			apiBuilder.on('ready', () => { logger.info(`✅ ready to listen to ${e}`) });
+
+			await apiBuilder.isReady;
+			const api = apiBuilder;
 			const chain = (await api.rpc.system.chain()).toString();
 			new ChainNotification(api, chain, reporters, config).start();
 		})
