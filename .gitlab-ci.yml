@@ -15,7 +15,7 @@ default:
 variables:
   CI_REGISTRY:                     "docker.io/paritytech"
   GIT_STRATEGY:                    fetch
-  CI_IMAGE:                        node:16.10-alpine
+  CI_IMAGE:                        node:20-alpine
   DOCKERHUB_REPO:                  "paritytech"
   IMAGE_NAME:                      docker.io/$DOCKERHUB_REPO/polkadot-basic-notification
   DOCKERFILE:                      injected.Containerfile
