@@ -228,7 +228,7 @@ export class BatchReporter<Inner extends Reporter> implements Reporter {
 	interval: number;
 	storagePath: string;
 	inner: Inner;
-	handle: NodeJS.Timer;
+	handle: NodeJS.Timeout;
 	misc: boolean;
 
 	constructor(inner: Inner, { interval, misc, leftovers }: BatchConfig, storagePath: string) {
