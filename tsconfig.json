@@ -2,9 +2,7 @@
 	"compilerOptions": {
 		"target": "es6",
 		"module": "CommonJS",
-		"lib": [
-			"es6"
-		],
+		"lib": ["es6"],
 		"moduleResolution": "node",
 		"allowJs": true,
 		"rootDir": "./src",
@@ -27,10 +25,5 @@
 		"declarationMap": false,
 		"skipLibCheck": true
 	},
-	"exclude": [
-		"**/*.test.ts",
-		"*.js",
-		"build",
-		"jest.config.js"
-	],
+	"exclude": ["**/*.test.ts", "*.js", "build", "jest.config.js"]
 }

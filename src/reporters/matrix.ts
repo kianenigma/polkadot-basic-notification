@@ -11,7 +11,7 @@ export class MatrixReporter implements Reporter {
 		this.client = sdk.createClient({
 			baseUrl: config.server,
 			accessToken: config.accessToken,
-			userId: config.userId
+			userId: config.userId,
 		});
 		this.roomId = config.roomId;
 		logger.info(
@@ -19,8 +19,21 @@ export class MatrixReporter implements Reporter {
 		);
 	}
 
-	async report(meta: Report): Promise<void> {
-		const innerContent = new GenericReporter(meta).HTMLTemplate();
+	async report(report: Report): Promise<void> {
+		const innerContent = new GenericReporter(report).htmlTemplate();
+		const content = {
+			formatted_body: innerContent,
+			body: innerContent,
+			msgtype: 'm.text',
+			format: 'org.matrix.custom.html'
+		};
+		await this.client.sendEvent(this.roomId, 'm.room.message', content, '');
+	}
+
+	async groupReport(reports: Report[]): Promise<void> {
+		const innerContent = reports
+			.map((r) => new GenericReporter(r).htmlTemplate())
+			.join('\n</br>\n');
 		const content = {
 			formatted_body: innerContent,
 			body: innerContent,

@@ -1,19 +1,10 @@
-import { Address } from '@polkadot/types/interfaces/runtime';
 import { GenericEvent, GenericExtrinsic } from '@polkadot/types';
+import { Address } from '@polkadot/types/interfaces/runtime';
+import { ISubscriptionTarget, MethodSubscription } from './config';
 
-export interface Only {
-	only: ISubscriptionTarget[];
-}
-
-export interface Ignore {
-	ignore: ISubscriptionTarget[];
-}
-
-export type MethodSubscription = 'all' | Only | Ignore;
-
-export interface ISubscriptionTarget {
-	pallet: string;
-	method: string;
+export interface ConcreteAccount {
+	address: Address;
+	nickname: string;
 }
 
 export class SubscriptionTarget implements ISubscriptionTarget {
@@ -36,14 +27,6 @@ export class SubscriptionTarget implements ISubscriptionTarget {
 	match(t: ISubscriptionTarget): boolean {
 		return this.matchPallet(t.pallet) && this.matchMethod(t.method);
 	}
-}
-
-/**
- * An account that we match against and it is a REAL account.
- */
-export interface ConcreteAccount {
-	address: Address;
-	nickname: string;
 }
 
 /**
@@ -106,14 +89,12 @@ export function matchExtrinsicToAccounts(
 }
 
 export function subscriptionFilter(t: ISubscriptionTarget, sub: MethodSubscription): boolean {
-	if (Object.keys(sub).includes('only')) {
-		const only = (sub as Only).only;
-		return only.some((o) => new SubscriptionTarget(o).match(t));
-	} else if (Object.keys(sub).includes('ignore')) {
-		const ignore = (sub as Ignore).ignore;
-		return !ignore.find((o) => new SubscriptionTarget(o).match(t));
-	} else {
-		// we know that sub === "all" at this point.
-		return true;
+	switch (sub.type) {
+		case 'all':
+			return true;
+		case 'ignore':
+			return !sub.ignore.find((o) => new SubscriptionTarget(o).match(t));
+		case 'only':
+			return sub.only.some((o) => new SubscriptionTarget(o).match(t));
 	}
 }
