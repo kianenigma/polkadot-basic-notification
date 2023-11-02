@@ -1,4 +1,3 @@
-import { Hash } from '@polkadot/types/interfaces/runtime';
 import { ExtendedAccount } from '../matching';
 import { logger } from '../logger';
 import { appendFileSync, existsSync, readFileSync, unlinkSync, writeFileSync } from 'fs';
