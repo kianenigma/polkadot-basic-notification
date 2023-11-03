@@ -58,7 +58,7 @@ class ChainNotification {
 		logger.info(`⛓ Starting listen to ${this.chain} [sub: ${this.apiSubscription}]`);
 
 		let lastBlock: number | undefined = undefined;
-		const unsub = await subFn(async (header) => {
+		await subFn(async (header) => {
 			logger.debug(`checking block ${header.number} ${header.hash} of ${this.chain}`);
 			if (
 				lastBlock !== undefined &&
@@ -131,7 +131,6 @@ class ChainNotification {
 		}
 
 		function innerOf(generic: GenericNotification): EventInner | ExtrinsicInner {
-			const f = (x: any) => JSON.parse(JSON.stringify(x));
 			const s = (d: Codec) => {
 				const r = d.toRawType().toLowerCase();
 				if (r == 'u128' || r.toLowerCase() == 'balance') {
@@ -206,7 +205,7 @@ class ChainNotification {
 }
 
 async function listAllChains(config: AppConfig, reporters: Reporter[]) {
-	const _ = await Promise.all(
+	await Promise.all(
 		config.endpoints.map(async (e) => {
 			const provider = new WsProvider(e, 2500, {}, 10 * 60 * 1000);
 			const api = await ApiPromise.create({ provider });

@@ -1,4 +1,3 @@
-import { Hash } from '@polkadot/types/interfaces/runtime';
 import { ExtendedAccount } from '../matching';
 import { logger } from '../logger';
 import { appendFileSync, existsSync, readFileSync, unlinkSync, writeFileSync } from 'fs';
@@ -229,7 +228,7 @@ export class BatchReporter<Inner extends Reporter> implements Reporter {
 	interval: number;
 	storagePath: string;
 	inner: Inner;
-	handle: NodeJS.Timer;
+	handle: NodeJS.Timeout;
 	misc: boolean;
 
 	constructor(inner: Inner, { interval, misc, leftovers }: BatchConfig, storagePath: string) {
