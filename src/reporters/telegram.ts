@@ -1,5 +1,5 @@
 import { Telegraf } from 'telegraf';
-import { ConsoleReporter, GenericReporter, Report, Reporter } from '.';
+import { GenericReporter, Report, Reporter } from '.';
 import { TelegramConfig } from '../config';
 import { logger } from '../logger';
 
