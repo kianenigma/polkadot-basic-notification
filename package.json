@@ -4,7 +4,7 @@
 	"description": "A notification system for Substrate based relaychains and its parachains",
 	"main": "index.js",
 	"scripts": {
-		"dev": "./node_modules/.bin/nodemon --exec ./node_modules/.bin/ts-node ./src/index.ts",
+		"dev": "./node_modules/.bin/nodemon --exec ./node_modules/.bin/ts-node ./src/index.ts -c examples/config-dev.json",
 		"build": "./node_modules/.bin/tsc --pretty",
 		"test": "./node_modules/.bin/jest",
 		"start": "./node_modules/.bin/ts-node ./src/index.ts",

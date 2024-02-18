@@ -109,6 +109,7 @@ export interface AppConfig {
 	method_subscription: MethodSubscription;
 	api_subscription: ApiSubscription;
 	reporters: ReportersConfig;
+	startupNotification: boolean,
 }
 
 function maybeBatchify<R extends Reporter>(

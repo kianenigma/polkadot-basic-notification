@@ -229,10 +229,12 @@ async function listAllChains(config: AppConfig, reporters: Reporter[]) {
 
 			await apiBuilder.isReady;
 			const api = apiBuilder;
+
 			const chain = (await api.rpc.system.chain()).toString();
 			new ChainNotification(api, chain, reporters, config).start();
 		})
 	);
+
 	// a rather wacky way to make sure this function never returns.
 	return new Promise(() => { });
 }
@@ -262,16 +264,17 @@ async function main() {
 	const retry = true;
 	while (retry) {
 		try {
-			// send a startup notification
-			const report: MiscReport = {
-				time: new Date(),
-				message: `program ${configName} restarted`,
-				_type: 'misc'
-			};
-			reporters.forEach(async (r) => {
-				await r.report(report);
-			});
-
+			if (config.startupNotification) {
+				// send a startup notification
+				const report: MiscReport = {
+					time: new Date(),
+					message: `program ${configName} restarted`,
+					_type: 'misc'
+				};
+				reporters.forEach(async (r) => {
+					await r.report(report);
+				});
+			}
 			await listAllChains(config, reporters);
 		} catch (e) {
 			// if they are batch reporters, clean them.
