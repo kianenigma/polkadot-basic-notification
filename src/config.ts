@@ -1,6 +1,7 @@
 import { logger } from './logger';
 import { readFileSync } from 'fs';
 import {
+	BatchReporter,
 	ConsoleReporter,
 	EmailReporter,
 	FileSystemReporter,
@@ -9,7 +10,12 @@ import {
 } from './reporters';
 import * as yaml from 'js-yaml';
 import yargs from 'yargs';
-import { ConcreteAccount, MethodSubscription } from './matching';
+import { isAddress } from '@polkadot/util-crypto';
+import * as t from 'ts-interface-checker';
+import AppConfigTI, { BatchConfig } from './config-ti';
+import { TelegramReporter } from './reporters/telegram';
+import { createHash } from 'crypto';
+import { TextEncoder } from 'util';
 
 const ENV_CONFIG = 'DOT_NOTIF_CONF';
 
@@ -21,11 +27,44 @@ export const argv = yargs(process.argv.slice(2))
 	})
 	.parseSync();
 
+export interface Only {
+	type: 'only';
+	only: ISubscriptionTarget[];
+}
+
+export interface Ignore {
+	type: 'ignore';
+	ignore: ISubscriptionTarget[];
+}
+
+export interface All {
+	type: 'all';
+}
+
+export type MethodSubscription = All | Only | Ignore;
+
+export interface ISubscriptionTarget {
+	pallet: string;
+	method: string;
+}
+
+export interface RawAccount {
+	address: string;
+	nickname: string;
+}
+
+export interface BatchConfig {
+	interval: number;
+	misc?: boolean;
+	leftovers?: boolean
+}
+
 export interface EmailConfig {
 	from: string;
 	to: string[];
 	gpgpubkey?: string;
 	transporter: any;
+	batch?: BatchConfig;
 }
 
 export interface MatrixConfig {
@@ -33,17 +72,30 @@ export interface MatrixConfig {
 	accessToken: string;
 	roomId: string;
 	server: string;
+	batch?: BatchConfig;
 }
 
 export interface FsConfig {
 	path: string;
+	batch?: BatchConfig;
+}
+
+export interface ConsoleConfig {
+	batch?: BatchConfig;
+}
+
+export interface TelegramConfig {
+	chatId: string;
+	botToken: string;
+	batch?: BatchConfig;
 }
 
 export interface ReportersConfig {
 	email?: EmailConfig;
 	matrix?: MatrixConfig;
 	fs?: FsConfig;
-	console?: any;
+	telegram?: TelegramConfig;
+	console?: ConsoleConfig;
 }
 
 export enum ApiSubscription {
@@ -52,21 +104,32 @@ export enum ApiSubscription {
 }
 
 export interface AppConfig {
-	accounts: ConcreteAccount[];
+	accounts: RawAccount[];
 	endpoints: string[];
 	method_subscription: MethodSubscription;
 	api_subscription: ApiSubscription;
 	reporters: ReportersConfig;
 }
 
-export interface App {
-	config: AppConfig;
-	reporters: Reporter[];
+function maybeBatchify<R extends Reporter>(
+	reporter: R,
+	type: string,
+	batchConfig?: BatchConfig
+): R | BatchReporter<R> {
+	if (batchConfig && batchConfig.interval) {
+		const hash = createHash('sha256')
+			.update(new TextEncoder().encode(JSON.stringify(reporter)))
+			.digest('hex');
+		return new BatchReporter(reporter, batchConfig, `batch-${hash}`);
+	} else {
+		return reporter;
+	}
 }
 
 export class ConfigBuilder {
 	config: AppConfig;
 	reporters: Reporter[];
+	configName: string;
 
 	constructor() {
 		if (!argv.c) {
@@ -74,36 +137,42 @@ export class ConfigBuilder {
 			process.exit(1);
 		}
 
-		const anyConfig = yaml.load(readFileSync(argv.c, 'utf8'));
-		const config = this.verifyConfig(anyConfig);
+		const anyConfig = ConfigBuilder.loadConfig(argv.c);
+		const config = ConfigBuilder.verifyConfig(anyConfig);
+		this.configName = argv.c;
 
 		if (config.reporters.matrix !== undefined) {
-			try {
-				config.reporters.matrix.userId =
-					process.env.MATRIX_USERID || config.reporters.matrix.userId;
-				config.reporters.matrix.accessToken =
-					process.env.MATRIX_ACCESSTOKEN || config.reporters.matrix.accessToken;
-			} catch (error) {
-				console.error('Error connecting to Matrix: ', error);
-				process.exit(1);
-			}
+			config.reporters.matrix.userId = process.env.MATRIX_USERID || config.reporters.matrix.userId;
+			config.reporters.matrix.accessToken =
+				process.env.MATRIX_ACCESSTOKEN || config.reporters.matrix.accessToken;
 		}
 
 		const reporters: Reporter[] = [];
 		for (const reporterType in config.reporters) {
 			if (reporterType === 'email') {
-				const reporter = new EmailReporter(config.reporters[reporterType] as EmailConfig);
-				reporters.push(reporter);
+				const rConf = config.reporters[reporterType] as EmailConfig;
+				const reporter = new EmailReporter(rConf);
+				reporters.push(maybeBatchify(reporter, reporterType, rConf.batch));
 			}
 			if (reporterType === 'console') {
-				reporters.push(new ConsoleReporter());
+				const rConf = config.reporters[reporterType] as ConsoleConfig;
+				const reporter = new ConsoleReporter();
+				reporters.push(maybeBatchify(reporter, reporterType, rConf.batch));
+			}
+			if (reporterType == 'telegram') {
+				const rConf = config.reporters[reporterType] as TelegramConfig;
+				const reporter = new TelegramReporter(rConf);
+				reporters.push(maybeBatchify(reporter, reporterType, rConf.batch));
 			}
 			if (reporterType === 'fs') {
-				reporters.push(new FileSystemReporter(config.reporters[reporterType] as FsConfig));
+				const rConf = config.reporters[reporterType] as FsConfig;
+				const reporter = new FileSystemReporter(rConf);
+				reporters.push(maybeBatchify(reporter, reporterType, rConf.batch));
 			}
 			if (reporterType === 'matrix') {
-				const reporter = new MatrixReporter(config.reporters[reporterType] as MatrixConfig);
-				reporters.push(reporter);
+				const rConf = config.reporters[reporterType] as MatrixConfig;
+				const reporter = new MatrixReporter(rConf);
+				reporters.push(maybeBatchify(reporter, reporterType, rConf.batch));
 			}
 		}
 
@@ -121,18 +190,23 @@ export class ConfigBuilder {
 		this.reporters = reporters;
 	}
 
-	verifyConfig(config: any): AppConfig {
-		const missing = (f: string) => {
-			logger.error(`aborting due to missing config field ${f}`);
+	static loadConfig(path: string): unknown {
+		return yaml.load(readFileSync(path, 'utf8'));
+	}
+
+	static verifyConfig(config: any): AppConfig {
+		const error = (f: string) => {
+			logger.error(`aborting due to error ${f}`);
 			process.exit(1);
 		};
 
-		if (!config.accounts) missing('accounts');
-		if (!config.endpoints) missing('endpoints');
-		if (!config.method_subscription) missing('method_subscription');
-		if (!config.api_subscription) missing('api_subscription');
-		if (!config.reporters) missing('reporters');
+		const checker = t.createCheckers(AppConfigTI);
+		checker.AppConfig.check(config);
+		const parsedConfig = config as AppConfig;
 
-		return config as AppConfig;
+		if (!parsedConfig.accounts.every((a) => isAddress(a.address.toString())))
+			error('invalid account address');
+
+		return parsedConfig;
 	}
 }

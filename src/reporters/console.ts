@@ -1,4 +1,4 @@
-import { GenericReporter, Reporter } from '.';
+import { GenericReporter, Report, Reporter } from '.';
 import { logger } from '../logger';
 
 export class ConsoleReporter implements Reporter {
@@ -6,8 +6,8 @@ export class ConsoleReporter implements Reporter {
 		logger.info(`✅ registering console reporter`);
 	}
 
-	report(meta: Report): Promise<void> {
-		console.log(new GenericReporter(meta).rawTemplate());
+	report(report: Report): Promise<void> {
+		console.log(new GenericReporter(report).rawTemplate());
 		return Promise.resolve();
 	}
 }

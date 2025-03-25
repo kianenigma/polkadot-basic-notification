@@ -8,3 +8,4 @@ config-*.json
 *.log
 *.key
 *.ignore.json
+dont-care

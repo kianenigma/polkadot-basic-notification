@@ -4,21 +4,30 @@ import { ApiPromise, WsProvider } from '@polkadot/api';
 import { GenericExtrinsic, GenericEvent } from '@polkadot/types/';
 import { Header } from '@polkadot/types/interfaces/runtime';
 import { logger } from './logger';
-import { methodOf, palletOf, Report, Reporter, ReportType } from './reporters';
-import { ApiSubscription, AppConfig, ConfigBuilder } from './config';
+import {
+	NotificationReport,
+	Reporter,
+	NotificationReportType,
+	EventInner,
+	ExtrinsicInner
+} from './reporters';
+import { ApiSubscription, AppConfig, ConfigBuilder, MethodSubscription } from './config';
 import {
 	ConcreteAccount,
 	ExtendedAccount,
 	matchEventToAccounts,
 	matchExtrinsicToAccounts,
 	MatchOutcome,
-	MethodSubscription,
 	subscriptionFilter
 } from './matching';
+import { Codec } from '@polkadot/types-codec/types';
 
-// TODO: full verification of all config fields.
-// TODO:
+interface GenericNotification {
+	type: NotificationReportType;
+	data: GenericExtrinsic | GenericEvent;
+}
 
+/// The notification class for a single chain.
 class ChainNotification {
 	reporters: Reporter[];
 	accounts: ConcreteAccount[];
@@ -31,7 +40,10 @@ class ChainNotification {
 		this.reporters = reporters;
 		this.methodSubscription = config.method_subscription;
 		this.apiSubscription = config.api_subscription;
-		this.accounts = config.accounts;
+		// we've already checked that all accounts are valid in config.ts
+		this.accounts = config.accounts.map((raw) => {
+			return { address: api.createType('Address', raw.address), nickname: raw.nickname };
+		});
 		this.api = api;
 		this.chain = chain;
 	}
@@ -45,7 +57,7 @@ class ChainNotification {
 		logger.info(`⛓ Starting listen to ${this.chain} [sub: ${this.apiSubscription}]`);
 
 		let lastBlock: number | undefined = undefined;
-		const unsub = await subFn(async (header) => {
+		await subFn(async (header) => {
 			logger.debug(`checking block ${header.number} ${header.hash} of ${this.chain}`);
 			if (
 				lastBlock !== undefined &&
@@ -60,7 +72,7 @@ class ChainNotification {
 				listOfSkippedBlocks.map(async (n) => {
 					const blockHash = await this.api.rpc.chain.getBlockHash(n);
 					const header: Header = await this.api.rpc.chain.getHeader(blockHash);
-					logger.warn(`catching up with a skipped block ${header.number}`);
+					logger.debug(`catching up with a skipped block ${header.number}`);
 					await this.perHeader(header);
 				});
 			} else if (
@@ -69,9 +81,11 @@ class ChainNotification {
 				header.number.toNumber() <= lastBlock
 			) {
 				logger.error(`This makes no sense ${header.number}`);
+			} else {
+				await this.perHeader(header);
+				lastBlock = header.number.toNumber();
 			}
-			await this.perHeader(header);
-			lastBlock = header.number.toNumber();
+
 		});
 	}
 
@@ -83,89 +97,160 @@ class ChainNotification {
 		const blockApi = await this.api.at(header.hash);
 		const events = await blockApi.query.system.events();
 		const number = header.number.toNumber();
-		const hash = header.hash;
+		const hash = header.hash.toString();
 		const timestamp = (await blockApi.query.timestamp.now()).toBn().toNumber();
 
-		const report: Report = { hash, chain, number, timestamp, inputs: [] };
+		const report: NotificationReport = {
+			hash,
+			chain,
+			number,
+			timestamp,
+			details: [],
+			_type: 'notification'
+		};
 
-		const processMatchOutcome = (
-			type: ReportType,
-			inner: GenericExtrinsic | GenericEvent,
-			outcome: MatchOutcome
-		) => {
+		/// Method of a transaction or an event, e.g. `transfer` or `Deposited`.
+		function methodOf(generic: GenericNotification): string {
+			if (generic.type == 'event') {
+				return generic.data.method.toString();
+			} else {
+				return (generic.data as GenericExtrinsic).meta.name.toString();
+			}
+		}
+
+		/// Pallet of a transaction or an event, e.g. `Balances` or `System`.
+		function palletOf(generic: GenericNotification): string {
+			if (generic.type === 'event') {
+				// TODO: there's probably a better way for this?
+				// @ts-ignore
+				return generic.data.toHuman().section;
+			} else {
+				return (generic.data as GenericExtrinsic).method.section.toString();
+			}
+		}
+
+		function innerOf(generic: GenericNotification): EventInner | ExtrinsicInner {
+			const s = (d: Codec) => {
+				const r = d.toRawType().toLowerCase();
+				if (r == 'u128' || r.toLowerCase() == 'balance') {
+					// @ts-ignore
+					return formatBalance(data);
+				} else {
+					return d.toString();
+				}
+			};
+
+			if (generic.type == 'event') {
+				const event = generic.data as GenericEvent;
+				const ret: EventInner = { data: event.toJSON()['data'], type: 'event' };
+				return ret;
+			} else {
+				const ext = generic.data as GenericExtrinsic;
+				const ret: ExtrinsicInner = {
+					data: Array.from(ext.method.args).map((d) => s(d)),
+					nonce: ext.nonce.toNumber(),
+					signer: ext.signer.toString(),
+					type: 'extrinsic'
+				};
+				return ret;
+			}
+		}
+
+		const processMatchOutcome = (generic: GenericNotification, outcome: MatchOutcome) => {
 			if (outcome === true) {
 				// it is a wildcard.
 				const account: ExtendedAccount = 'Wildcard';
-				const pallet = palletOf(type, inner);
-				const method = methodOf(type, inner);
-				const reportInput = { account, type, inner, pallet, method };
+				const pallet = palletOf(generic);
+				const method = methodOf(generic);
+				const inner = innerOf(generic);
+				const reportInput = { account, inner, pallet, method };
 				if (subscriptionFilter({ pallet, method }, this.methodSubscription)) {
-					report.inputs.push(reportInput);
+					report.details.push(reportInput);
 				}
 			} else if (outcome === false) {
 				// it did not match.
 			} else {
 				// it matched with an account.
-				const matched = outcome.with;
-				const pallet = palletOf(type, inner);
-				const method = methodOf(type, inner);
-				const reportInput = { account: matched, type, inner, method, pallet };
+				const account = outcome.with;
+				const pallet = palletOf(generic);
+				const method = methodOf(generic);
+				const inner = innerOf(generic);
+				const reportInput = { account, inner, pallet, method };
 				if (subscriptionFilter({ pallet, method }, this.methodSubscription)) {
-					report.inputs.push(reportInput);
+					report.details.push(reportInput);
 				}
 			}
 		};
 
 		// check all extrinsics.
 		for (const ext of extrinsics) {
-			const type = ReportType.Extrinsic;
 			const matchOutcome = matchExtrinsicToAccounts(ext, accounts);
-			processMatchOutcome(type, ext, matchOutcome);
+			const generic: GenericNotification = { data: ext, type: 'extrinsic' };
+			processMatchOutcome(generic, matchOutcome);
 		}
 
 		// check events.
 		for (const event of events.map((e) => e.event)) {
-			const type = ReportType.Event;
 			const matchOutcome = matchEventToAccounts(event, accounts);
-			processMatchOutcome(type, event, matchOutcome);
+			const generic: GenericNotification = { data: event, type: 'event' };
+			processMatchOutcome(generic, matchOutcome);
 		}
 
 		// if events or extrinsics have matched, trigger a report.
-		if (report.inputs.length) {
+		if (report.details.length) {
 			await Promise.all(this.reporters.map((r) => r.report(report)));
 		}
 	}
 }
 
 async function listAllChains(config: AppConfig, reporters: Reporter[]) {
-	const _ = await Promise.all(
+	await Promise.all(
 		config.endpoints.map(async (e) => {
-			const provider = new WsProvider(e);
+			const provider = new WsProvider(e, 2500, {}, 10 * 60 * 1000);
 			const api = await ApiPromise.create({ provider });
 			const chain = (await api.rpc.system.chain()).toString();
-			// NOTE: bit of a hack, we must convert all addresses to a legit address type after we
-			// have build the API.
-			config.accounts = config.accounts.map(({ address, nickname }) => {
-				return { nickname, address: api.createType('Address', address) };
-			});
 			new ChainNotification(api, chain, reporters, config).start();
 		})
 	);
 	// a rather wacky way to make sure this function never returns.
+	// eslint-disable-next-line @typescript-eslint/no-empty-function
 	return new Promise(() => { });
 }
 
 async function main() {
 	const { config, reporters } = new ConfigBuilder();
 
+	const graceful = () => {
+		// if they are batch reporters, clean them.
+		reporters.forEach(async (r) => {
+			if (r.clean) {
+				r.clean();
+			}
+		});
+		logger.error("gracefully shutting down...");
+		process.exit()
+	}
+
+	process.on('uncaughtException', (err) => {
+		console.log(`Caught exception: ${err}`);
+	});
+
+	// process.on('exit', graceful)
+	process.on('SIGINT', graceful);
+	process.on('SIGQUIT', graceful);
+
 	const retry = true;
 	while (retry) {
 		try {
 			await listAllChains(config, reporters);
-			// this is just to make sure we NEVER reach this code. The above function never returns,
-			// unless if we trap in an exception.
-			process.exit(1);
 		} catch (e) {
+			// if they are batch reporters, clean them.
+			reporters.forEach(async (r) => {
+				if (r.clean) {
+					r.clean();
+				}
+			});
+
 			logger.error(`retrying due to error: ${e}`);
 		}
 	}

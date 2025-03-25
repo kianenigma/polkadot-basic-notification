@@ -1,46 +1,29 @@
 {
-	"name": "polkadot-basic-notification",
-	"version": "0.1.0",
-	"description": "A notification system for Substrate based relaychains and its parachains",
-	"main": "index.js",
-	"scripts": {
-		"dev": "./node_modules/.bin/nodemon --exec ./node_modules/.bin/ts-node ./src/index.ts",
-		"start": "./node_modules/.bin/ts-node ./src/index.ts",
-		"deploy:pm2": "./node_modules/.bin/pm2 start pm2.config.js",
-		"update": "./node_modules/.bin/ncu -u && yarn",
-		"format": "prettier --write './**/*.{js,jsx,ts,tsx,css,md,json}' --config ./.prettierrc",
-		"lint": "eslint . --ext .ts --fix"
-	},
-	"author": "@kianenigma",
-	"license": "ISC",
-	"devDependencies": {
-		"@babel/cli": "^7.17.6",
-		"@babel/core": "^7.17.5",
-		"@babel/preset-typescript": "^7.16.7",
-		"@types/js-yaml": "^4.0.5",
-		"@types/node": "^17.0.21",
-		"@types/nodemailer": "6.4.4",
-		"@types/yargs": "^17.0.9",
-		"@typescript-eslint/eslint-plugin": "^5.13.0",
-		"@typescript-eslint/parser": "^5.13.0",
-		"eslint": "^8.10.0",
-		"eslint-config-prettier": "^8.5.0",
-		"eslint-plugin-prettier": "^4.2.1",
-		"prettier": "^2.7.1",
-		"nodemon": "^2.0.15",
-		"npm-check-updates": "12.5.2",
-		"pm2": "^5.2.0",
-		"ts-loader": "^9.2.7",
-		"ts-node": "^10.6.0",
-		"typescript": "4.6.2"
-	},
-	"dependencies": {
-		"@polkadot/api": "7.10.1",
-		"js-yaml": "4.1.0",
-		"matrix-js-sdk": "^15.6.0",
-		"nodemailer": "^6.7.2",
-		"openpgp": "^5.2.0",
-		"winston": "^3.6.0",
-		"yargs": "^17.3.1"
-	}
+  "name": "polkadot-basic-notifications",
+  "module": "index.ts",
+  "type": "module",
+  "scripts": {
+    "dev": "bun run src/index.ts -c examples/config-dev-all.json",
+	"devp": "bun run src/index.ts -c examples/config-p-dev-all.json",
+	"pm2": "bunx run pm2 start pm2.config.js"
+  },
+  "devDependencies": {
+    "@types/bun": "latest",
+    "@types/js-yaml": "^4.0.9",
+    "@types/yargs": "^17.0.33"
+  },
+  "peerDependencies": {
+    "typescript": "^5.0.0"
+  },
+  "dependencies": {
+    "@polkadot/api": "^15.8.1",
+    "js-yaml": "^4.1.0",
+    "matrix-js-sdk": "^37.1.0",
+    "nodemailer": "^6.10.0",
+    "openpgp": "^6.1.0",
+    "telegraf": "^4.16.3",
+    "ts-interface-checker": "^1.0.2",
+    "winston": "^3.17.0",
+    "yargs": "^17.7.2"
+  }
 }

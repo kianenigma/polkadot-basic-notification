@@ -2,7 +2,7 @@ module.exports = {
 	apps: [
 		{
 			name: 'polkadot-basic-notifications',
-			script: 'yarn run start -c config-dev.json',
+			script: 'bun run ./src/index.ts -c config-dev-all.json',
 			autorestart: true,
 			watch: true,
 			env: {
