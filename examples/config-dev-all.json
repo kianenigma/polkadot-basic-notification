@@ -1,0 +1,16 @@
+{
+	"accounts": [
+		{
+			"address": "5CiAEq9xc8ZsYBdFRp6rDd5pkfW7TZbUvQNeiMQV7wHmAem5",
+			"nickname": "kianenigma"
+		}
+	],
+	"endpoints": ["wss://westend-rpc.polkadot.io"],
+	"method_subscription": {
+		"type": "all"
+	},
+	"api_subscription": "finalized",
+	"reporters": {
+		"console": {}
+	}
+}

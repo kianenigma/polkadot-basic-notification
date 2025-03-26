@@ -12,9 +12,19 @@
   "scripts": {
     "dev": "bun run src/index.ts -c examples/config-dev-all.json",
     "devp": "bun run src/index.ts -c examples/config-p-dev-all.json",
+
+    "build:node": "bun build ./src/index.ts --outdir ./dist --target node",
+	"build": "bun run build:node",
+    "prepublishOnly": "bun run build",
+
     "pm2": "bunx run pm2 start pm2.config.js",
-    "build": "bun build ./src/index.ts --outdir ./dist --target node",
-    "prepublishOnly": "bun run build"
+
+	"build:linux": "bun build src/index.ts --compile --target bun-linux-x64 --outfile dist/polkadot-basic-notifications-linux-x64",
+    "build:macos-x64": "bun build src/index.ts --compile --target bun-darwin-x64 --outfile dist/polkadot-basic-notifications-macos-x64",
+    "build:macos-arm": "bun build src/index.ts --compile --target bun-darwin-arm64 --outfile dist/polkadot-basic-notifications-macos-arm64",
+    "build:platforms": "bun run build && bun run build:linux && bun run build:macos-x64 && bun run build:macos-arm",
+	"build:release": "bun run build:platforms && bun run build",
+	"release": "bun build:release && gh release create v$(node -p \"require('./package.json').version\") --title \"Release v$(node -p \"require('./package.json').version\")\" --generate-notes ./dist/*"
   },
   "devDependencies": {
     "@types/bun": "latest",
