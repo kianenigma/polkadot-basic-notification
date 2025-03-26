@@ -9,3 +9,4 @@ config-*.json
 *.key
 *.ignore.json
 dont-care
+dist
