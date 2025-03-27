@@ -106,6 +106,7 @@ export enum ApiSubscription {
 export interface AppConfig {
 	accounts: RawAccount[];
 	endpoints: string[];
+	startup_notification: boolean;
 	method_subscription: MethodSubscription;
 	api_subscription: ApiSubscription;
 	reporters: ReportersConfig;

@@ -1,0 +1,29 @@
+{
+	"accounts": [],
+	"endpoints": [
+		"wss://polkadot-collectives-rpc.polkadot.io",
+		"wss://kusama-rpc.dwellir.com"
+	],
+	"api_subscription": "finalized",
+	"startup_notification": false,
+	"method_subscription": {
+		"type": "only",
+		"only": [
+			{
+				"pallet": "FellowshipReferenda",
+				"method": "Confirmed"
+			},
+			{
+				"pallet": "FellowshipReferenda",
+				"method": "Submitted"
+			},
+			{
+				"pallet": "FellowshipSalary",
+				"method": "CycleStarted"
+			}
+		]
+	},
+	"reporters": {
+		"console": {}
+	}
+}

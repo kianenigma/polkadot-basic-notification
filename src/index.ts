@@ -9,7 +9,8 @@ import {
 	Reporter,
 	NotificationReportType,
 	EventInner,
-	ExtrinsicInner
+	ExtrinsicInner,
+	MiscReport
 } from './reporters';
 import { ApiSubscription, AppConfig, ConfigBuilder, MethodSubscription } from './config';
 import {
@@ -218,7 +219,7 @@ async function listAllChains(config: AppConfig, reporters: Reporter[]) {
 }
 
 async function main() {
-	const { config, reporters } = new ConfigBuilder();
+	const { config, reporters, configName } = new ConfigBuilder();
 
 	const graceful = () => {
 		// if they are batch reporters, clean them.
@@ -242,6 +243,18 @@ async function main() {
 	const retry = true;
 	while (retry) {
 		try {
+			if (config.startup_notification) {
+				// send a startup notification
+				const report: MiscReport = {
+					time: new Date(),
+					message: `program ${configName} restarted`,
+					_type: 'misc'
+				};
+				reporters.forEach(async (r) => {
+					await r.report(report);
+				});
+			}
+
 			await listAllChains(config, reporters);
 		} catch (e) {
 			// if they are batch reporters, clean them.
